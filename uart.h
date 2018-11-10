@@ -12,5 +12,10 @@ void uartSendCompByte(uint8_t data);
 //send an array of a specific length
 void uartSendCompN(uint8_t * data, uint32_t length);
 
+void uartAtmelConfigure();
+
+void uartSendAtmelByte(uint8_t data);
+
+void uartSendAtmelN(uint8_t * data, uint32_t length);
 
 #endif /* UART_H_ */
