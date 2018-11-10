@@ -3,15 +3,10 @@
 #include "i2c.h"
 #include "uart.h"
 #include "gpio.h"
+#include "timer.h"
 
-/*
- * uart.c
- *
- *  Created on: Nov 10, 2018
- *      Author: Nathan
- */
 
-void uart_comp_configure(){
+void uartCompConfigure(){
     EUSCI_A0->CTLW0 |= EUSCI_A_CTLW0_SWRST;         // Put eUSCI in reset
     P1SEL0 |= (BIT2 | BIT3);                        // TX & Rx Primary mode
     P1SEL1 &= ~(BIT2 | BIT3);
@@ -35,13 +30,13 @@ void uart_comp_configure(){
 }
 
 // transmits a byte of data to serial terminal
-void uart_send_comp_byte(uint8_t data) {
+void uartSendCompByte(uint8_t data) {
     while(!(EUSCI_A0->IFG & BIT1)); // block until transmitter is ready
     EUSCI_A0->TXBUF = data; // load data into buffer
 }
 
 // transmits a string of data to serial terminal
-void uart_send_comp_n(uint8_t * data, uint32_t length) {
+void uartSendCompN(uint8_t * data, uint32_t length) {
     uint32_t i = 0;
     for(i=0; i < length; i++){
         uart_send_comp_byte(data[i]); // send data byte by byte

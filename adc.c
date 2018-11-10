@@ -3,13 +3,8 @@
 #include "i2c.h"
 #include "uart.h"
 #include "gpio.h"
+#include "timer.h"
 
-// Define constants
-#define ADC_TO_DIFFV         0.010073
-#define MOTOR_ADC_TO_CURRENT 0.033577
-// Read Voltage = ADC Value * ADC resolution = MEM[x] * 0.20146 mV
-// Sense resistor voltage drop (Differential Voltage) = Read Voltage / 20 = MEM[x] * 0.010073 mV
-// Sense resistor current = Differential Voltage / Sense resistance (0.3mOhms) = MEM[x] * 0.033577 A
 
 // Declare global variables
 uint8_t motorCurrents[16];

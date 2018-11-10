@@ -4,6 +4,7 @@
 #include "i2c.h"
 #include "uart.h"
 #include "gpio.h"
+#include "timer.h"
 
 // Declare global variables
 volatile float motorCurrents[8];
