@@ -22,7 +22,8 @@ void ADC14_IRQHandler(void)
             motorCurrents[2*i] = (uint8_t) ADC14->MEM[i] & 0xFF;             // Store lower half of conversions
             motorCurrents[(2*i)+1] = (uint8_t) (ADC14->MEM[i] >> 8) & 0xFF;  // Store upper half of conversions
         }
-        // TODO: Add code to transmit motorCurrents array to computer
+        uartSendCompByte((uint8_t) 0xFF);                                    // Transmit 0xFF to denote motor data
+        uartSendCompN(motorCurrents, 16);                                    // Transmit data to computer
         startReadMotorCurrents();                                            // Begin another motor read
     }
 
@@ -36,7 +37,8 @@ void ADC14_IRQHandler(void)
             powerStatus[2*i] = (uint8_t) ADC14->MEM[i+8] & 0xFF;               // Store lower half of conversions
             powerStatus[(2*i)+1] = (uint8_t) (ADC14->MEM[i+8] >> 8) & 0xFF;    // Store upper half of conversions
         }
-        // TODO: Add code to transmit powerStatus array to computer
+        uartSendCompByte((uint8_t) 0xFE);                                      // Transmit 0xFE to denote power data
+        uartSendCompN(powerStatus, 12);                                        // Transmit data to computer
     }
 }
 
