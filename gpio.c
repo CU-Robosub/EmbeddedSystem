@@ -5,7 +5,7 @@
 #include "gpio.h"
 
 /*
- * i2c.c
+ * gpio.c
  *
  *  Created on: Nov 10, 2018
  *      Author: Nathan
