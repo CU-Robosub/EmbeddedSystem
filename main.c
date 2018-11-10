@@ -6,9 +6,6 @@
 #include "gpio.h"
 #include "timer.h"
 
-// Declare global variables
-volatile float motorCurrents[8];
-volatile float powerStatus[6];
 
 void main(void)
 {
