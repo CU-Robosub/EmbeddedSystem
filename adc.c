@@ -13,7 +13,7 @@
 
 void adcConfiguration()
 {
-    ADC14->
+    ADC14->CTL0 &= ~ADC14_CTL0_ENC; // Disable ADC Encoding to allow changing settings
 }
 
 uint16_t* readMotorCurrents()
