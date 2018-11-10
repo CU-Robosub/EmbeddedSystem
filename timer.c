@@ -6,3 +6,7 @@
 #include "timer.h"
 
 
+void timerConfiguration()
+{
+
+}
