@@ -5,7 +5,12 @@
 #include "gpio.h"
 #include "timer.h"
 
-// OLD I2C CODE THAT MIGHT NOT WORK EXTERNALLY
+
+uint8_t commState = 0;
+uint8_t writeData = 0;
+uint8_t depthOne = 0;
+uint8_t depthTwo = 0;
+uint8_t depthThree = 0;
 
 void i2cConfigure(void)
 {
@@ -19,46 +24,51 @@ void i2cConfigure(void)
     EUSCI_B1->CTLW1 = EUSCI_B_CTLW1_ASTP_0;
     //set clock divider for SMCLK at 3MHz for 400KBPS data rate
     EUSCI_B1->BRW = (uint16_t) (3000000 / 40000);
-    //Disable TX IE. Polling interrupt flags manually made more sense to me and the communication is fast
-    //so the inefficiencies of polling the flags is minimal
-    EUSCI_B1->IE &= ~EUSCI_B_IE_TXIE0;
+
+    //enable interrupts from slave in I2COA0 and sending data
+    EUSCI_B1->IE |= EUSCI_B_IE_TXIE0;
+    EUSCI_B1->IE |= EUSCI_B_IE_RXIE0;
     /* Enable I2C Module to start operations */
     EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_SWRST;
 }
 
-void i2cWrite16 (unsigned char pointer, uint16_t writeByte)
+void i2cWrite8Start (uint8_t writeByte)
 {
-    // Set master to transmit mode PL
+    commState = 0;
+    // Set master to transmit mode
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TR;
-    // Clear any existing interrupt flag PL
-    EUSCI_B1->IFG &= ~EUSCI_B_IE_TXIE0;
-    // Wait until ready to write PL
+    // Clear any existing interrupt flag
+    EUSCI_B1->IFG &= ~EUSCI_B_IFG_TXIFG0;
+    // Wait until buffer is clear and ready to write
     while (EUSCI_B1->STATW & EUSCI_B_STATW_BBUSY);
-    // Initiate start and send first character
+    // Initiate start and send pointer in I2CSA buffer
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
-    //Wait for TX Buf to be empty
-    while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
-    EUSCI_B1->TXBUF = pointer;
+    writeData = writeByte;
+}
 
-    // Send the MSB to SENSOR
-    //Wait for TX Buf to be empty and send data
-    while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
-    EUSCI_B1->TXBUF = (unsigned char)(writeByte>>8);
-    while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
-    EUSCI_B1->TXBUF = (unsigned char)(writeByte&0xFF);
+void i2cWrite8Data ()
+{
+    commState = 1;
+    // send data to slave
+    EUSCI_B1->TXBUF = writeData;
+}
+
+void i2cStop ()
+{
     //Wait for TX Buf to be empty then send stop command
-    while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
 }
 
+/////OLD FUNCTION HERE////
 int i2cRead16 (unsigned char pointer)
 {
     volatile int val = 0;
     volatile int val2 = 0;
-    // Set master to transmit mode PL
+    volatile int val3 = 0;
+    // Set master to transmit mode
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TR;
-    // Clear any existing interrupt flag PL
-    EUSCI_B1->IFG &= ~EUSCI_B_IE_TXIE0 ;
+    // Clear any existing interrupt flag
+    EUSCI_B1->IFG &= ~EUSCI_B_IFG_RXIFG0;
     // Wait until ready to write PL
     while (EUSCI_B1->STATW & EUSCI_B_STATW_BBUSY);
     // Initiate start and send first character
@@ -72,7 +82,7 @@ int i2cRead16 (unsigned char pointer)
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
     while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
 
-    //Set to recieve mode and send start condition
+    //Set to receive mode and send start condition
     EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_TR;
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
     //wait for the RX Buf to fill
@@ -93,143 +103,106 @@ int i2cRead16 (unsigned char pointer)
     return (int16_t)val;
 }
 
-void TMP006_init(void)
+void i2cRead24Start ()
 {
-    // Specify slave address for temp sensor
-    EUSCI_B1->I2CSA = TMP006_SLAVE_ADDRESS;
-    // Reset TMP006
-    I2C_write16(TMP006_WRITE_REG, TMP006_RST);
-    //delay for the temperature sensor to fully reset
-    volatile int i;
-    for (i=10000; i>0;i--);
-
-    // Power-up and re-enable device for sampling once a second
-    I2C_write16(TMP006_WRITE_REG, TMP006_POWER_UP | TMP006_CR_1);
+    comState = 2;
+    // Set master to transmit mode
+    EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TR;
+    // Clear any existing interrupt flag
+    EUSCI_B1->IFG &= ~EUSCI_B_IFG_RXIFG0;
+    // Wait until ready to write PL
+    while (EUSCI_B1->STATW & EUSCI_B_STATW_BBUSY);
+    // Initiate start and send first character
+    EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
 }
 
-void OPT3001_init(void)
+int i2cRead24End ()
 {
-    // Specify slave address for light sensor
-    EUSCI_B1->I2CSA = OPT3001_SLAVE_ADDRESS;
-    //Set Default configuration
-    I2C_write16(CONFIG_REG, DEFAULT_CONFIG_100);
+    uint32_t finalRead = (depthOne << 16) | (depthTwo << 8) | (depthThree);
+    uint8_t *sendRead = [0xDD, depthOne, depthTwo, depthThree];
+    uartSendCompN(sendRead, 3);
 }
 
-void I2C_setslave(unsigned int slaveAdr)
+void depthInit(void)
 {
-    // Specify slave address for I2C
-    EUSCI_B1->I2CSA = slaveAdr;
-    // Enable and clear the interrupt flag to reset communications
-    EUSCI_B1->IFG &= ~(EUSCI_B_IE_TXIE0  + EUSCI_B_IE_RXIE0 );
+    // Specify slave address for depth sensor
+    EUSCI_B1->I2CSA = depthWrite;
+    //set the read value into the self address for receive command
+    EUSCI_B1->I2COA0 |= depthRead;
+    EUSCI_B1->I2COA0 |= EUSCI_B_I2COA0_OAEN;
+    // reset the sensor
+    i2cWrite8Start(depthReset);
 }
 
-int TMP006_readObjectVoltage(void)
+
+void depthD12Set(uint8_t D1, uint8_t D2)
 {
-    // Specify slave address for TMP006
-    I2C_setslave(TMP006_SLAVE_ADDRESS);
-    //read the data
-    return I2C_read16(TMP006_P_VOBJ);
+    //set the data in D1
+    i2cWrite8Start(D1);
+    //set the data in D2
+    i2cWrite8Start(D2);
 }
 
-int TMP006_readAmbientTemperature(void)
+void depthAdcStart()
 {
-    // Specify slave address for TMP006
-    I2C_setslave(TMP006_SLAVE_ADDRESS);
-    //read the data
-    return I2C_read16(TMP006_P_TABT);
+    //set the data in D1
+    i2cWrite8Start(0x00);
+    //start timer
 }
 
-//This function was taken directly from TI's example code due to the complexity
-//of the temperature sensor's mathematics and the necessity of math.h
-long double TMP006_getTemp(void)
+//i2cRead24Start ()
+
+void EUSCIB1_IRQHandler  (void)
 {
-    static long double S0 = 0;
-    volatile int Vobj = 0;
-    volatile int Tdie = 0;
-    /* Read the object voltage */
-    Vobj = TMP006_readObjectVoltage();
-    /* Read the ambient temperature */
-    Tdie = TMP006_readAmbientTemperature();
-    Tdie = Tdie >> 2;
-
-    /* Calculate TMP006. This needs to be reviewed and calibrated */
-    long double Vobj2 = (double)Vobj*.00000015625;
-    long double Tdie2 = (double)Tdie*.03525 + 273.15;
-
-    /* Initialize constants */
-    S0 = 6 * pow(10, -14);
-    long double a1 = 1.75*pow(10, -3);
-    long double a2 = -1.678*pow(10, -5);
-    long double b0 = -2.94*pow(10, -5);
-    long double b1 = -5.7*pow(10, -7);
-    long double b2 = 4.63*pow(10, -9);
-    long double c2 = 13.4;
-    long double Tref = 298.15;
-
-    /* Calculate values */
-    long double S = S0*(1+a1*(Tdie2 - Tref)+a2*pow((Tdie2 - Tref),2));
-    long double Vos = b0 + b1*(Tdie2 - Tref) + b2*pow((Tdie2 - Tref),2);
-    volatile long double fObj = (Vobj2 - Vos) + c2*pow((Vobj2 - Vos),2);
-    volatile long double Tobj = pow(pow(Tdie2,4) + (fObj/S),.25);
-    Tobj = (9.0/5.0)*(Tobj - 273.15) + 20;
-
-    /* Return temperature of object */
-    return (Tobj);
-}
-
-//This function was taken directly from TI's example code due to the complexity
-//of the light sensor's mathematics and all of the cases being correct
-uint32_t OPT3001_getLux(void)
-{
-    /* Specify slave address for OPT3001 */
-    I2C_setslave(OPT3001_SLAVE_ADDRESS);
-
-    volatile uint16_t exponent = 0;
-    volatile uint32_t result = 0;
-    volatile uint32_t raw;
-    raw = I2C_read16(RESULT_REG);
-    /*Convert to LUX*/
-    //extract result & exponent data from raw readings
-    result = raw&0x0FFF;
-    exponent = (raw>>12)&0x000F;
-    //convert raw readings to LUX
-    switch(exponent){
-    case 0: //*0.015625
-        result = result>>6;
-        break;
-    case 1: //*0.03125
-        result = result>>5;
-        break;
-    case 2: //*0.0625
-        result = result>>4;
-        break;
-    case 3: //*0.125
-        result = result>>3;
-        break;
-    case 4: //*0.25
-        result = result>>2;
-        break;
-    case 5: //*0.5
-        result = result>>1;
-        break;
-    case 6:
-        result = result;
-        break;
-    case 7: //*2
-        result = result<<1;
-        break;
-    case 8: //*4
-        result = result<<2;
-        break;
-    case 9: //*8
-        result = result<<3;
-        break;
-    case 10: //*16
-        result = result<<4;
-        break;
-    case 11: //*32
-        result = result<<5;
-        break;
+    //transmit interrupt
+    if (EUSCI_B1->IFG & BIT1)
+    {
+        if (comState == 1)
+        {
+            i2cStop();
+        }
+        else if (comState == 2)
+        {
+            i2cStop();
+            //going to be receiving next
+            comState = 3;
+            //set to slave mode
+            EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_TR;
+            EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
+        }
+        else if (comState == 6)
+        {
+            i2cRead24End ();
+        }
+        else
+        {
+            i2cWrite8Data ();
+        }
+        EUSCI_B1->IFG &= ~(BIT1);
     }
-    return result;
+
+    //Receive interrupt
+    else if (EUSCI_B1->IFG & BIT0)
+    {
+        if (comState = 3)
+        {
+            depthOne = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
+            comState  = 4;
+        }
+        else if (comState = 4)
+        {
+            depthTwo = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
+            comState  = 5;
+        }
+        else if (comState = 5)
+        {
+            depthThree = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
+            comState  = 6;
+            EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
+        }
+    }
 }
+
+
+
+
