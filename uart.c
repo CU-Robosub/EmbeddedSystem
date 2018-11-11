@@ -70,7 +70,7 @@ void uartSendCompByte(uint8_t data)
 void uartSendCompN(uint8_t * data, uint32_t length)
 {
     uint32_t i = 0;
-    for(i=0; i < length; i++)
+    for(i = 0; i < length; i++)
     {
         uartSendCompByte(data[i]);                  // send data byte by byte
     }
@@ -86,7 +86,7 @@ void uartSendAtmelByte(uint8_t data)
 void uartSendAtmelN(uint8_t * data, uint32_t length)
 {
    uint32_t i = 0;
-   for(i; i < length; i++)                         // Takes in an array in order to send a byte to the UART line
+   for(i = 0; i < length; i++)                         // Takes in an array in order to send a byte to the UART line
    {
        uartSendAtmelByte(data[i]);
    }
