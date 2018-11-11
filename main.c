@@ -9,5 +9,16 @@
 
 void main(void)
 {
-	WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// stop watchdog timer
+	WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// Stop watchdog timer
+	adcConfiguration();
+	uartCompConfigure();
+	uartAtmelConfigure();
+	gpioConfiguration();
+	timerConfiguration();
+	startReadMotorCurrents();                       // Begin first motor ADC conversion
+
+	while(1)
+	{
+	    // Literally nothing
+	}
 }
