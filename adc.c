@@ -43,7 +43,7 @@ void ADC14_IRQHandler(void)
     }
 }
 
-void adcConfiguration()
+void adcConfigure()
 {
     ADC14->CTL0     &= ~ADC14_CTL0_ENC;                          // Disable ADC Encoding to allow changing settings
     ADC14->CTL0     |= ADC14_CTL0_SHT0_3 | ADC14_CTL0_SHT1_3 |   // 32 clock cycle sample-and-hold times
