@@ -23,7 +23,7 @@ void TA0_0_IRQHandler()
     TA0CCR0 &= ~TIMER_A_CCTLN_CCIFG;   // Clear interrupt flag
 }
 
-void timerConfiguration()
+void timerConfigure()
 {
     TA0CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__8 |    // Clock source: SMCLK, Clock divider: 8
                 TIMER_A_CTL_MC__UP;                              // Counting: Up Mode
