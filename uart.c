@@ -49,7 +49,6 @@ void uartSendCompN(uint8_t * data, uint32_t length)
     }
 }
 
-
 void uartPneumaticsConfigure()
 {
    EUSCI_A1->IE |= EUSCI_A_IE_RXIE;                // Enables the Rx Interrupt
