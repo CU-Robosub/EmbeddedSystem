@@ -49,7 +49,6 @@ void uartSendCompN(uint8_t * data, uint32_t length)
     }
 }
 
-
 void uartPneumaticsConfigure()
 {
     // Put eUSCI in reset to configure UART
