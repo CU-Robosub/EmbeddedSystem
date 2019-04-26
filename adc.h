@@ -1,6 +1,10 @@
 #ifndef ADC_H_
 #define ADC_H_
 
+#include "msp.h"
+#include "uart.h"
+#include "main.h"
+
 // Define constants
 #define ADC_TO_DIFFV         0.010073
 // Read Voltage = ADC Value * ADC resolution = MEM[x] * 0.20146 mV

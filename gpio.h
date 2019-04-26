@@ -1,6 +1,9 @@
 #ifndef GPIO_H_
 #define GPIO_H_
 
+#include "msp.h"
+#include "main.h"
+
 #define LOW_VOLTAGE    11528  // ADC reading of 2.33V = Battery voltage 14V
 #define HIGH_VOLTAGE   12410  // ADC reading of 2.5V  = Battery voltage 15V
 

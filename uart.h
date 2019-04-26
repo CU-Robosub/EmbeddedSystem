@@ -1,5 +1,9 @@
 #ifndef UART_H_
 #define UART_H_
+
+#include "msp.h"
+#include "main.h"
+
 //9600 for atmel UCA1 p2.3 p2.2
 //115200 for comp UCA0 p1.2 p1.3
 

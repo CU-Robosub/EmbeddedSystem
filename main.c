@@ -5,6 +5,7 @@
 #include "uart.h"
 #include "gpio.h"
 #include "timer.h"
+#include "main.h"
 
 
 void main(void)
