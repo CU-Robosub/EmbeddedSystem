@@ -1,6 +1,9 @@
 #ifndef TIMER_H_
 #define TIMER_H_
 
+#include "msp.h"
+#include "adc.h"
+#include "main.h"
 
 /**********************************************************************
  * FUNCTION NAME:       timerConfigure
