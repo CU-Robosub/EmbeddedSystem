@@ -1,6 +1,13 @@
 #ifndef I2C_H_
 #define I2C_H_
 
+#include "msp.h"
+#include "adc.h"
+#include "uart.h"
+#include "gpio.h"
+#include "timer.h"
+#include "main.h"
+
 //DEFINES
 #define depthRead       ((uint8_t) 0b11101101)
 #define depthWrite      ((uint8_t) 0b11101100)

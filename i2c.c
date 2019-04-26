@@ -1,16 +1,8 @@
-#include "msp.h"
-#include "adc.h"
 #include "i2c.h"
-#include "uart.h"
-#include "gpio.h"
-#include "timer.h"
-
-
-
 
 void i2cConfigure(void)
 {
-    //Initialize global variables
+    // Initialize global variables
     commState = 0;
     writeData = 0;
     depthOne = 0;
@@ -18,20 +10,20 @@ void i2cConfigure(void)
     depthThree = 0;
 
     // Initialize USCI_B1 and I2C Master to communicate with slave devices
-    //Reset all registers/disable, master, I2C mode, SMCLK
+    // Reset all registers/disable, master, I2C mode, SMCLK
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_SWRST;
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_MST;
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_MODE_3;
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_SSEL__SMCLK;
-    //no autostop to manually control when stop bit is sent
+    // No autostop to manually control when stop bit is sent
     EUSCI_B1->CTLW1 = EUSCI_B_CTLW1_ASTP_0;
-    //set clock divider for SMCLK at 3MHz for 400KBPS data rate
+    // Set clock divider for SMCLK at 3MHz for 400KBPS data rate
     EUSCI_B1->BRW = (uint16_t) (3000000 / 40000);
 
-    //enable interrupts from slave in I2COA0 and sending data
+    // Enable interrupts from slave in I2COA0 and sending data
     EUSCI_B1->IE |= EUSCI_B_IE_TXIE0;
     EUSCI_B1->IE |= EUSCI_B_IE_RXIE0;
-    /* Enable I2C Module to start operations */
+    // Enable I2C Module to start operations
     EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_SWRST;
 }
 
@@ -52,13 +44,13 @@ void i2cWrite8Start (uint8_t writeByte)
 void i2cWrite8Data (void)
 {
     commState = 1;
-    // send data to slave
+    // Send data to slave
     EUSCI_B1->TXBUF = writeData;
 }
 
 void i2cStop (void)
 {
-    //Wait for TX Buf to be empty then send stop command
+    // Wait for TX Buf to be empty then send stop command
     while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
 }
@@ -77,27 +69,27 @@ int i2cRead16 (unsigned char pointer)
     while (EUSCI_B1->STATW & EUSCI_B_STATW_BBUSY);
     // Initiate start and send first character
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
-    //Wait for TX Buf to be empty
+    // Wait for TX Buf to be empty
     while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
     EUSCI_B1->TXBUF = pointer;
-    //Wait for TX Buf to be empty and send stop data
-    //for the slave to take control of communications
+    // Wait for TX Buf to be empty and send stop data
+    // For the slave to take control of communications
     while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
     while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
 
-    //Set to receive mode and send start condition
+    // Set to receive mode and send start condition
     EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_TR;
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
-    //wait for the RX Buf to fill
+    // Wait for the RX Buf to fill
     while (!(EUSCI_B1->IFG & EUSCI_B_IE_RXIE0));
-    //read first 16 bits
+    // Read first 16 bits
     val = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
-    //send stop command and wait for TXBUF and RXBuf to finish
+    // Send stop command and wait for TXBUF and RXBuf to finish
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
     while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
     while (!(EUSCI_B1->IFG & EUSCI_B_IE_RXIE0));
-    //Read rest of RXBUF
+    // Read rest of RXBUF
     val2 = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
     // Shift val to top MSB
     val = (val << 8);
@@ -131,34 +123,34 @@ void depthInit(void)
 {
     // Specify slave address for depth sensor
     EUSCI_B1->I2CSA = depthWrite;
-    //set the read value into the self address for receive command
+    // Set the read value into the self address for receive command
     EUSCI_B1->I2COA0 |= depthRead;
     EUSCI_B1->I2COA0 |= EUSCI_B_I2COA0_OAEN;
-    // reset the sensor
+    // Reset the sensor
     i2cWrite8Start(depthReset);
 }
 
 
 void depthD12Set(uint8_t D1, uint8_t D2)
 {
-    //set the data in D1
+    // Set the data in D1
     i2cWrite8Start(D1);
-    //set the data in D2
+    // Set the data in D2
     i2cWrite8Start(D2);
 }
 
 void depthAdcStart(void)
 {
-    //set the data in D1
+    // Set the data in D1
     i2cWrite8Start(0x00);
-    //start timer
+    // Start timer
 }
 
 //i2cRead24Start ()
 
 void EUSCIB1_IRQHandler  (void)
 {
-    //transmit interrupt
+    // Transmit interrupt
     if (EUSCI_B1->IFG & BIT1)
     {
         if (commState == 1)
@@ -168,9 +160,9 @@ void EUSCIB1_IRQHandler  (void)
         else if (commState == 2)
         {
             i2cStop();
-            //going to be receiving next
+            // Going to be receiving next
             commState = 3;
-            //set to slave mode
+            // Set to slave mode
             EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_TR;
             EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
         }
@@ -185,7 +177,7 @@ void EUSCIB1_IRQHandler  (void)
         EUSCI_B1->IFG &= ~(BIT1);
     }
 
-    //Receive interrupt
+    // Receive interrupt
     else if (EUSCI_B1->IFG & BIT0)
     {
         if (commState == 3)
