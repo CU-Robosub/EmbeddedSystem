@@ -6,14 +6,17 @@
 #include "timer.h"
 
 
-uint8_t commState = 0;
-uint8_t writeData = 0;
-uint8_t depthOne = 0;
-uint8_t depthTwo = 0;
-uint8_t depthThree = 0;
+
 
 void i2cConfigure(void)
 {
+    //Initialize global variables
+    commState = 0;
+    writeData = 0;
+    depthOne = 0;
+    depthTwo = 0;
+    depthThree = 0;
+
     // Initialize USCI_B1 and I2C Master to communicate with slave devices
     //Reset all registers/disable, master, I2C mode, SMCLK
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_SWRST;
@@ -46,16 +49,17 @@ void i2cWrite8Start (uint8_t writeByte)
     writeData = writeByte;
 }
 
-void i2cWrite8Data ()
+void i2cWrite8Data (void)
 {
     commState = 1;
     // send data to slave
     EUSCI_B1->TXBUF = writeData;
 }
 
-void i2cStop ()
+void i2cStop (void)
 {
     //Wait for TX Buf to be empty then send stop command
+    while (!(EUSCI_B1->IFG & EUSCI_B_IFG_TXIFG0));
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
 }
 
@@ -103,9 +107,9 @@ int i2cRead16 (unsigned char pointer)
     return (int16_t)val;
 }
 
-void i2cRead24Start ()
+void i2cRead24Start (void)
 {
-    comState = 2;
+    commState = 2;
     // Set master to transmit mode
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TR;
     // Clear any existing interrupt flag
@@ -116,10 +120,10 @@ void i2cRead24Start ()
     EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
 }
 
-int i2cRead24End ()
+int i2cRead24End (void)
 {
     uint32_t finalRead = (depthOne << 16) | (depthTwo << 8) | (depthThree);
-    uint8_t *sendRead = [0xDD, depthOne, depthTwo, depthThree];
+    uint8_t *sendRead = {0xDD, depthOne, depthTwo, depthThree};
     uartSendCompN(sendRead, 3);
 }
 
@@ -143,7 +147,7 @@ void depthD12Set(uint8_t D1, uint8_t D2)
     i2cWrite8Start(D2);
 }
 
-void depthAdcStart()
+void depthAdcStart(void)
 {
     //set the data in D1
     i2cWrite8Start(0x00);
@@ -157,20 +161,20 @@ void EUSCIB1_IRQHandler  (void)
     //transmit interrupt
     if (EUSCI_B1->IFG & BIT1)
     {
-        if (comState == 1)
+        if (commState == 1)
         {
             i2cStop();
         }
-        else if (comState == 2)
+        else if (commState == 2)
         {
             i2cStop();
             //going to be receiving next
-            comState = 3;
+            commState = 3;
             //set to slave mode
             EUSCI_B1->CTLW0 &= ~EUSCI_B_CTLW0_TR;
             EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
         }
-        else if (comState == 6)
+        else if (commState == 6)
         {
             i2cRead24End ();
         }
@@ -184,20 +188,20 @@ void EUSCIB1_IRQHandler  (void)
     //Receive interrupt
     else if (EUSCI_B1->IFG & BIT0)
     {
-        if (comState = 3)
+        if (commState == 3)
         {
             depthOne = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
-            comState  = 4;
+            commState  = 4;
         }
-        else if (comState = 4)
+        else if (commState == 4)
         {
             depthTwo = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
-            comState  = 5;
+            commState  = 5;
         }
-        else if (comState = 5)
+        else if (commState == 5)
         {
             depthThree = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
-            comState  = 6;
+            commState  = 6;
             EUSCI_B1->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
         }
     }
