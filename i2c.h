@@ -23,7 +23,7 @@ uint8_t depthThree;
 
 /**********************************************************************
  * FUNCTION NAME:       i2cConfigure
- * FUNCTION PURPOSE:    Initializes EUSCI_B1 to work in I2C mode using
+ * FUNCTION PURPOSE:    Initializes EUSCI_B0 to work in I2C mode using
  *                      SMCLK, 400KBPS data rate, and interrupts for
  *                      both TX and RX. Also initializes globals
  * INPUTS:
@@ -35,7 +35,7 @@ void i2cConfigure(void);
 
 /**********************************************************************
  * FUNCTION NAME:       i2cWrite8Start
- * FUNCTION PURPOSE:    Sets up EUSCI_B1 for transmission of the given
+ * FUNCTION PURPOSE:    Sets up EUSCI_B0 for transmission of the given
  *                      data "writeByte". Does not send data over I2C
  *                      yet, just configures registers and writes to
  *                      writeData.
