@@ -1,10 +1,12 @@
 #ifndef CLOCK_H_
 #define CLOCK_H_
 
+#include "msp.h"
+#include "main.h"
+
 /**********************************************************************
  * FUNCTION NAME:       clockConfigure
- * FUNCTION PURPOSE:    Configures all required system clocks to
- *                      operate at a high frequency.
+ * FUNCTION PURPOSE:    Configures DCOCLK, HSMCLK, and SMCLK speeds.
  * INPUTS:
  *  -None
  * OUTPUTS:
