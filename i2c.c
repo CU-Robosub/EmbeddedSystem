@@ -1,5 +1,14 @@
 #include "i2c.h"
 
+<<<<<<< HEAD
+
+/*********************************** NOTES ***********************************
+ * - Depth Sensor SCL operates at a maximum frequency of 400kHz
+ * - We use the OSR 256 depth reading because it is the fastest option
+ *    ~ This gives a resolution of 1.57mbar, which is accurate enough
+ ****************************************************************************/
+
+=======
 
 // TODO change to work with different clocks speeds
 void i2cConfigure(void)
@@ -104,9 +113,14 @@ int i2cRead16 (unsigned char pointer)
     // Return temperature value
     return (int16_t)val;
 }
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
 
-void i2cRead24Start (void)
+void i2cConfigure(void)
 {
+<<<<<<< HEAD
+    // Disable eUSCI to configure I2C
+    EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_SWRST;
+=======
     commState = 2;
     // Set master to transmit mode
     EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;
@@ -117,14 +131,18 @@ void i2cRead24Start (void)
     // Initiate start and send first character
     EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
 }
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
 
-int i2cRead24End (void)
-{
-    uint32_t finalRead = (depthOne << 16) | (depthTwo << 8) | (depthThree);
-    uint8_t *sendRead = {0xDD, depthOne, depthTwo, depthThree};
-    uartSendCompN(sendRead, 3);
-}
+    // Configure I2C
+    EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_MST;           // Set MSP as the master device
+    EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_MODE_3;        // Operate in I2C mode
+    EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_SSEL__SMCLK;   // Use the SMCLK as the I2C clock source
 
+<<<<<<< HEAD
+    // Set clock divider for SMCLK at 3MHz for 400kHz data rate
+    // Fscl = Fsmclk / BRW --> 400,000 = 12,000,000 / 30
+    EUSCI_B0->BRW = 30;
+=======
 void depthInit(void)
 {
     // Specify slave address for depth sensor
@@ -135,72 +153,148 @@ void depthInit(void)
     // Reset the sensor
     i2cWrite8Start(depthReset);
 }
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
 
+    // Load Depth Sensor address into slave address register
+    EUSCI_B0->I2CSA = DEPTH_SENSOR_ADDRESS;
 
-void depthD12Set(uint8_t D1, uint8_t D2)
-{
-    // Set the data in D1
-    i2cWrite8Start(D1);
-    // Set the data in D2
-    i2cWrite8Start(D2);
+    // Enable receive interrupt for communicating with depth sensor
+    EUSCI_B0->IE |= EUSCI_B_IE_RXIE0;
+
+    // Enable I2C Module to start operations
+    EUSCI_B0->CTLW0 &= ~EUSCI_B_CTLW0_SWRST;
 }
 
-void depthAdcStart(void)
-{
-    // Set the data in D1
-    i2cWrite8Start(0x00);
-    // Start timer
-}
 
-//i2cRead24Start ()
-
-void EUSCIB1_IRQHandler  (void)
+void EUSCIB1_IRQHandler(void)
 {
+<<<<<<< HEAD
+    // If a transmit interrupt called the handler, check what state we are in
+    if(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0)
+=======
     // Transmit interrupt
     if (EUSCI_B0->IFG & BIT1)
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
     {
-        if (commState == 1)
+        // If we have sent the address portion of a conversion command
+        if(i2cState == ADDRESS_SENT_CONVERSION)
         {
-            i2cStop();
+            // Update state then transmit the actual conversion command and a stop bit
+            i2cState = CONVERSION_STARTED;
+            EUSCI_B0->TXBUF = DEPTH_SENSOR_DEPTH_CONVERSION;
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
         }
-        else if (commState == 2)
+        // If we have finished the conversion command and are moving to the ADC read command
+        else if(i2cState == CONVERSION_STARTED)
         {
+            // Update state then transmit the start/address frame again
+            i2cState = ADDRESS_SENT_ADC_COMMAND;
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
+        }
+        // If we have sent the address portion of an ADC read command
+        else if(i2cState == ADDRESS_SENT_ADC_COMMAND)
+        {
+<<<<<<< HEAD
+            // Update state then transmit the actual ADC read command and a stop bit
+            i2cState = ADC_READ_STARTED;
+            EUSCI_B0->TXBUF = DEPTH_SENSOR_ADC_READ;
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
+=======
             i2cStop();
             // Going to be receiving next
             commState = 3;
             // Set to slave mode
             EUSCI_B0->CTLW0 &= ~EUSCI_B_CTLW0_TR;
             EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
         }
-        else if (commState == 6)
+        // If an ADC read has begun, prepare to receive data
+        else if(i2cState == ADC_READ_STARTED)
         {
-            i2cRead24End ();
+            // Update state then set MSP to receive mode for incoming data and disable TX interrupt
+            i2cState = ADDRESS_SENT_ADC_READING;
+            EUSCI_B0->IE &= ~EUSCI_B_IE_TXIE0;          // Disable transmit interrupts
+            EUSCI_B0->CTLW0 &= ~EUSCI_B_CTLW0_TR;       // Set MSP to receive mode
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and read mode slave address
         }
+        // If not in an expected state, clear the TX interrupt flag
         else
         {
-            i2cWrite8Data ();
+            EUSCI_B0->IFG &= ~EUSCI_B_IFG_TXIFG0;
         }
+<<<<<<< HEAD
+    }
+
+    // If a receive interrupt called the handler, check what state we are in
+    if (EUSCI_B0->IFG & EUSCI_B_IFG_RXIFG0)
+=======
         EUSCI_B0->IFG &= ~(BIT1);
     }
 
     // Receive interrupt
     else if (EUSCI_B0->IFG & BIT0)
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
     {
-        if (commState == 3)
+        // If we just began reading an ADC conversion
+        if (i2cState == ADDRESS_SENT_ADC_READING)
         {
+<<<<<<< HEAD
+            // Update state then read the most significant byte of the 24-bit depth reading
+            i2cState = DEPTH_1_RECEIVED;
+            depthRead = (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK) << 16;
+=======
             depthOne = (EUSCI_B0->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
             commState  = 4;
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
         }
-        else if (commState == 4)
+        else if (i2cState == DEPTH_1_RECEIVED)
         {
+<<<<<<< HEAD
+            // Update state then read the middle byte of the 24-bit depth reading
+            i2cState = DEPTH_2_RECEIVED;
+            depthRead |= (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK) << 8;
+=======
             depthTwo = (EUSCI_B0->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
             commState  = 5;
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
         }
-        else if (commState == 5)
+        else if (i2cState == DEPTH_2_RECEIVED)
         {
+<<<<<<< HEAD
+            // Update state then read the middle byte of the 24-bit depth reading
+            i2cState = I2C_READY;
+            depthRead |= (EUSCI_B1->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
+
+            // End receiving by sending a NACK and STOP signal
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXNACK;
+            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
+
+            // Add an event to transmit the depth sensor reading
+            if(!queuePush(eventList, DEPTH_SENSOR_READ_FINISH))
+            {
+                // If queue is full, this is an error
+                while(!queueEmpty(transmit))
+                {
+                    // Empty out the transmit queue
+                    queuePop(transmit);
+                }
+
+                // Fill transmit queue with error message
+                queuePush(transmit, START_STOP_FRAME);
+                queuePush(transmit, ERROR_FRAME);
+                queuePush(transmit, EVENTLIST_QUEUE_FULL_ERROR);
+                queuePush(transmit, START_STOP_FRAME);
+
+                // Begin transmission and enter infinite while loop
+                uartBeginCompTransmit();
+                while(1);
+            }
+=======
             depthThree = (EUSCI_B0->RXBUF & EUSCI_B_RXBUF_RXBUF_MASK);
             commState  = 6;
             EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
         }
     }
 }

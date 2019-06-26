@@ -1,5 +1,6 @@
 #include "clock.h"
 
+
 void clockConfigure()
 {
     // Set the core voltage higher to support higher clock frequency

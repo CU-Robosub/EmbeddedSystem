@@ -1,8 +1,18 @@
 #ifndef CLOCK_H_
 #define CLOCK_H_
 
+
 #include "msp.h"
 #include "main.h"
+
+
+/**************************CLOCK FREQUENCIES***************************
+ * DCO Clock    = 48 MHz
+ * MCLK Clock   = 48 MHz
+ * SMCLK Clock  = 12 MHz
+ * HSMCLK Clock = 48 MHz
+ *********************************************************************/
+
 
 /**********************************************************************
  * FUNCTION NAME:       clockConfigure

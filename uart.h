@@ -1,11 +1,46 @@
 #ifndef UART_H_
 #define UART_H_
 
+
+#include "queue.h"
 #include "msp.h"
 #include "main.h"
 
-//9600 for atmel UCA1 p2.3 p2.2
-//115200 for comp UCA0 p1.2 p1.3
+
+// Define various frames used in UART communication
+#define START_STOP_FRAME        0xC0
+#define CONFIRMATION_CORRECT    0xF0
+#define CONFIRMATION_INCORRECT  0x0F
+#define MOTOR_CHANGE_FRAME      0x11
+#define PNEUMATICS_FIRE_FRAME   0x22
+#define DEPTH_SENSOR_FRAME      0xCC
+#define MOTOR_CURRENT_FRAME     0xDD
+#define POWER_CURRENT_FRAME     0xEE
+#define ERROR_FRAME             0xFF
+
+
+// Declare global variables
+extern volatile queue_t* eventList;
+extern volatile queue_t* pneumaticsReceive;
+extern volatile queue_t* motorReceive;
+extern volatile queue_t* transmit;
+extern volatile uint8_t pneumaticsState;
+extern volatile uint8_t currentActuator;
+
+
+// Enumeration for the different receiving states
+enum compReceiveStates
+{
+    READY = 0,
+    RECEIVING,
+    MOTOR_RECEIVING,
+    PNEUMATICS_RECEIVING
+};
+
+
+// 9600 baud for pneumatics eUSCI_A1 (P2.3 and P2.2)
+// 115200 baud for computer eUSCI_A0 (P1.2 and P1.3)
+
 
 /**********************************************************************
  * FUNCTION NAME:       uartCompConfigure
@@ -22,28 +57,16 @@ void uartCompConfigure();
 
 
 /**********************************************************************
- * FUNCTION NAME:       uartSendCompByte
- * FUNCTION PURPOSE:    Transmits a byte through eUSCI0 to the
- *                      computer.
+ * FUNCTION NAME:       uartBeginCompTransmit
+ * FUNCTION PURPOSE:    Begins a transmission to the computer by
+ *                      loading data into TXBUF and enabling the TX
+ *                      interrupt.
  * INPUTS:
- *  -uint8_t data:      Byte to be transmitted
+ *  -None
  * OUTPUTS:
  *  -None
  *********************************************************************/
-void uartSendCompByte(uint8_t data);
-
-
-/**********************************************************************
- * FUNCTION NAME:       uartsendCompN
- * FUNCTION PURPOSE:    Transmits a string of length N through eUSCI0
- *                      to the computer using uartSendCompByte.
- * INPUTS:
- *  -uint8_t * data:    Base pointer of the string to be transmitted.
- *  -uint32_t length:   Length of the string to be transmitted.
- * OUTPUTS:
- *  -None
- *********************************************************************/
-void uartSendCompN(uint8_t * data, uint32_t length);
+void uartBeginCompTransmit(void);
 
 
 /**********************************************************************
@@ -84,5 +107,6 @@ void uartSendPneumaticsByte(uint8_t data);
  *  -None
  *********************************************************************/
 void uartSendPneumaticsN(uint8_t * data, uint32_t length);
+
 
 #endif /* UART_H_ */

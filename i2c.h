@@ -1,6 +1,8 @@
 #ifndef I2C_H_
 #define I2C_H_
 
+
+#include "queue.h"
 #include "msp.h"
 #include "adc.h"
 #include "uart.h"
@@ -8,19 +10,20 @@
 #include "timer.h"
 #include "main.h"
 
-//DEFINES
-#define depthRead       ((uint8_t) 0b11101101)
-#define depthWrite      ((uint8_t) 0b11101100)
-#define depthReset      0x1E
-#define depthD1Con256   0x40
 
-//GLOBAL VARIABLES
-uint8_t commState;
-uint8_t writeData;
-uint8_t depthOne;
-uint8_t depthTwo;
-uint8_t depthThree;
+// Define frames for communication with depth sensor
+#define DEPTH_SENSOR_ADDRESS            0x86    // Only 7 bits
+#define DEPTH_SENSOR_RESET_COMMAND      0x1E
+#define DEPTH_SENSOR_DEPTH_CONVERSION   0x40
+#define DEPTH_SENSOR_ADC_READ           0x00
 
+<<<<<<< HEAD
+
+// Declare global variables
+extern volatile queue_t* eventList;
+extern volatile uint8_t i2cState;
+extern volatile uint32_t depthRead;
+=======
 /**********************************************************************
  * FUNCTION NAME:       i2cConfigure
  * FUNCTION PURPOSE:    Initializes EUSCI_B0 to work in I2C mode using
@@ -67,51 +70,34 @@ void i2cWrite8Data (void);
  *  -None
  *********************************************************************/
 void i2cStop (void);
+>>>>>>> 64c4418d77339039b6b1c5dc81dd7dfc4f40471d
 
-/////OLD FUNCTION HERE////
-/**********************************************************************
- * FUNCTION NAME:       i2cRead16
- * FUNCTION PURPOSE:    Reads 16 bits out of I2C
- * INPUTS:
- *  -pointer
- * OUTPUTS:
- *  -16 bit value retrieved from RX buffer
- *********************************************************************/
-int i2cRead16 (unsigned char pointer);
 
-/**********************************************************************
- * FUNCTION NAME:       i2cRead24Start
- * FUNCTION PURPOSE:
- * INPUTS:
- *  -None
- * OUTPUTS:
- *  -None
- *********************************************************************/
-void i2cRead24Start (void);
+// Enumeration for states during depth sensor reading
+enum depthStates
+{
+    I2C_READY = 0,
+    ADDRESS_SENT_CONVERSION,
+    CONVERSION_STARTED,
+    ADDRESS_SENT_ADC_COMMAND,
+    ADC_READ_STARTED,
+    ADDRESS_SENT_ADC_READING,
+    DEPTH_1_RECEIVED,
+    DEPTH_2_RECEIVED
+};
+
 
 /**********************************************************************
- * FUNCTION NAME:       i2cRead24End
- * FUNCTION PURPOSE:
+ * FUNCTION NAME:       i2cConfigure
+ * FUNCTION PURPOSE:    Initializes EUSCI_B1 to work in I2C mode using
+ *                      SMCLK, 400KBPS data rate, and interrupts for
+ *                      both TX and RX. Also initializes globals
  * INPUTS:
  *  -None
  * OUTPUTS:
  *  -None
  *********************************************************************/
-int i2cRead24End (void);
-
-/**********************************************************************
- * FUNCTION NAME:       depthInit
- * FUNCTION PURPOSE:
- * INPUTS:
- *  -None
- * OUTPUTS:
- *  -None
- *********************************************************************/
-void depthInit(void);
-
-void depthD12Set(uint8_t D1, uint8_t D2);
-
-void depthAdcStart(void);
+void i2cConfigure(void);
 
 
 #endif /* I2C_H_ */

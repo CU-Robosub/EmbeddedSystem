@@ -1,15 +1,22 @@
 #ifndef ADC_H_
 #define ADC_H_
 
+
+#include "queue.h"
 #include "msp.h"
 #include "uart.h"
 #include "main.h"
+
 
 // Define constants
 #define ADC_TO_DIFFV         0.010073
 // Read Voltage = ADC Value * ADC resolution = MEM[x] * 0.20146 mV
 // Sense resistor voltage drop (Differential Voltage) = Read Voltage / 20 = MEM[x] * 0.010073
 // Sense resistor current = Differential Voltage / Sense resistance = Line Current
+
+
+// Declare global variables
+extern volatile queue_t* eventList;
 
 
 /**********************************************************************
@@ -25,29 +32,5 @@
  *********************************************************************/
 void adcConfigure();
 
-
-/**********************************************************************
- * FUNCTION NAME:       startReadMotorCurrents
- * FUNCTION PURPOSE:    Begins an ADC conversion on the sequence of
- *                      channels corresponding to the motors.
- * INPUTS:
- *  -None
- * OUTPUTS:
- *  -None
- *********************************************************************/
-void startReadMotorCurrents();
-
-
-/**********************************************************************
- * FUNCTION NAME:       startReadPowerStatus
- * FUNCTION PURPOSE:    Begins an ADC conversion on the sequence of
- *                      channels corresponding to the current sensing
- *                      and battery voltage channels.
- * INPUTS:
- *  -None
- * OUTPUTS:
- *  -None
- *********************************************************************/
-void startReadPowerStatus();
 
 #endif /* ADC_H_ */

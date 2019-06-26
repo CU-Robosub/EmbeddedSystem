@@ -1,41 +1,5 @@
 #include "adc.h"
 
-// Declare global variables
-uint8_t motorCurrents[16];
-uint8_t powerStatus[12];
-
-void ADC14_IRQHandler(void)
-{
-    // If MEM7 triggered the interrupt, read motor currents
-    if(ADC14->IFGR0 & ADC14_IFGR0_IFG7)
-    {
-        int i;
-        for(i = 0;i < 8;i++)
-        {
-            // Read MEM0-MEM7
-            motorCurrents[2*i] = (uint8_t) ADC14->MEM[i] & 0xFF;             // Store lower half of conversions
-            motorCurrents[(2*i)+1] = (uint8_t) (ADC14->MEM[i] >> 8) & 0xFF;  // Store upper half of conversions
-        }
-        uartSendCompByte((uint8_t) 0xFF);                                    // Transmit 0xFF to denote motor data
-        uartSendCompN(motorCurrents, 16);                                    // Transmit data to computer
-        startReadMotorCurrents();                                            // Begin another motor read
-    }
-
-    // If MEM13 triggered the interrupt, read power status
-    if(ADC14->IFGR0 & ADC14_IFGR0_IFG13)
-    {
-        int i;
-        for(i = 0;i < 6;i++)
-        {
-            // Read MEM8-MEM13
-            powerStatus[2*i] = (uint8_t) ADC14->MEM[i+8] & 0xFF;               // Store lower half of conversions
-            powerStatus[(2*i)+1] = (uint8_t) (ADC14->MEM[i+8] >> 8) & 0xFF;    // Store upper half of conversions
-        }
-        setLEDColor((uint16_t)ADC14->MEM[13] & 0xFFFF);                        // Select color based on battery reading
-        uartSendCompByte((uint8_t) 0xFE);                                      // Transmit 0xFE to denote power data
-        uartSendCompN(powerStatus, 12);                                        // Transmit data to computer
-    }
-}
 
 void adcConfigure()
 {
@@ -52,30 +16,39 @@ void adcConfigure()
     ADC14->MCTL[4]  |= ADC14_MCTLN_INCH_4;                       // Motor 5
     ADC14->MCTL[5]  |= ADC14_MCTLN_INCH_5;                       // Motor 6
     ADC14->MCTL[6]  |= ADC14_MCTLN_INCH_6;                       // Motor 7
-    ADC14->MCTL[7]  |= ADC14_MCTLN_INCH_7 | ADC14_MCTLN_EOS;     // Motor 8
+    ADC14->MCTL[7]  |= ADC14_MCTLN_INCH_7 | ADC14_MCTLN_EOS;     // Motor 8 (End of motor conversion sequence)
     ADC14->MCTL[8]  |= ADC14_MCTLN_INCH_8;                       // 3.3V or 5V current
     ADC14->MCTL[9]  |= ADC14_MCTLN_INCH_9;                       // 9V current
     ADC14->MCTL[10] |= ADC14_MCTLN_INCH_10;                      // 12V current
     ADC14->MCTL[11] |= ADC14_MCTLN_INCH_11;                      // 19V current
     ADC14->MCTL[12] |= ADC14_MCTLN_INCH_12;                      // 48V current
-    ADC14->MCTL[13] |= ADC14_MCTLN_INCH_13 | ADC14_MCTLN_EOS;    // Battery voltage
+    ADC14->MCTL[13] |= ADC14_MCTLN_INCH_13 | ADC14_MCTLN_EOS;    // Battery voltage (End of power status conversion sequence)
 
     ADC14->IER0     |= ADC14_IER0_IE7 | ADC14_IER0_IE13;         // Allow interrupts on EOS bits
     ADC14->CTL0     |= ADC14_CTL0_ENC;                           // Enable ADC Encoding
     NVIC_EnableIRQ(ADC14_IRQn);                                  // Enable interrupts on NVIC
 }
 
-void startReadMotorCurrents()
-{
-    ADC14->CTL1 &= ~ADC14_CTL1_CSTARTADD_MASK;         // Set start address to MEM0
-    while(!(ADC14->CTL0 & ADC14_CTL0_BUSY));           // Wait until the ADC is not busy
-    ADC14->CTL0 |= ADC14_CTL0_SC;                      // Start a conversion
-}
 
-void startReadPowerStatus()
+void ADC14_IRQHandler(void)
 {
-    ADC14->CTL1 &= ~ADC14_CTL1_CSTARTADD_MASK;         // Clear start address bits
-    ADC14->CTL1 |= 0x00080000;                         // Set start address to MEM8
-    while(!(ADC14->CTL0 & ADC14_CTL0_BUSY));           // Wait until the ADC is not busy
-    ADC14->CTL0 |= ADC14_CTL0_SC;                      // Start a conversion
+    // If MEM7 triggered the interrupt, add a Motor Current Read Finish to the scheduler
+    if(ADC14->IFGR0 & ADC14_IFGR0_IFG7)
+    {
+        if(!queuePush(eventList, MOTOR_CURRENT_READ_FINISH))
+        {
+            // If schedule stack is full, enter while loop for debugging purposes
+            while(1);
+        }
+    }
+
+    // If MEM13 triggered the interrupt, read power status
+    if(ADC14->IFGR0 & ADC14_IFGR0_IFG13)
+    {
+        if(!queuePush(eventList, POWER_CURRENT_READ_FINISH))
+        {
+            // If schedule stack is full, enter while loop for debugging purposes
+            while(1);
+        }
+    }
 }
