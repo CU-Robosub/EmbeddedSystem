@@ -9,6 +9,9 @@
 
 // Define various frames used in UART communication
 #define START_STOP_FRAME        0xC0
+#define ESCAPE_FRAME            0xDB
+#define C0_FRAME                0xDC
+#define DB_FRAME                0xDD
 #define CONFIRMATION_CORRECT    0xF0
 #define CONFIRMATION_INCORRECT  0x0F
 #define MOTOR_CHANGE_FRAME      0x11

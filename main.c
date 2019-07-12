@@ -187,84 +187,85 @@ void main(void)
         {
             // Read motor number and pulse length
             uint8_t motorNumber = queuePop(motorReceive);
-            uint8_t pulseLength = queuePop(motorReceive) * 2;   // *2 because PWM clock period is 0.5usec
+            uint8_t pulseLength = queuePop(motorReceive);
 
-            // Check that this is followed by an end frame to assure proper communication
-            if(queuePop(motorReceive) != START_STOP_FRAME)
+            // Check if the pulse length was an escape frame
+            if(pulseLength == ESCAPE_FRAME)
             {
-                // If frame is not a stop frame, follow error procedure
-                while(!queueEmpty(transmit))
+                // Pull the next value from the queue
+                uint8_t temp = queuePop(motorReceive);
+
+                // If it is a C0 frame, update the value of pulseLength and flush the end frame from the queue
+                if(temp == C0_FRAME)
                 {
-                    // Empty out the transmit queue
-                    queuePop(transmit);
+                    pulseLength = 0xC0;
+                    queuePop(motorReceive);
                 }
 
-                // Fill transmit queue with error message
-                queuePush(transmit, START_STOP_FRAME);
-                queuePush(transmit, ERROR_FRAME);
-                queuePush(transmit, COMMUNICATION_ERROR);
-                queuePush(transmit, START_STOP_FRAME);
-
-                // Begin transmission and enter infinite while loop
-                uartBeginCompTransmit();
-                while(1);
+                // If it is a DB frame, update the value of pulseLength and flush the end frame from the queue
+                if(temp == DB_FRAME)
+                {
+                    pulseLength = 0xDB;
+                    queuePop(motorReceive);
+                }
             }
-            else
+
+            // Multiply pulse length by 2 because the period is 0.5usec
+            pulseLength *= 2;
+
+            // If frame is a stop frame, update motor as instructed
+            switch (motorNumber)
             {
-                // If frame is a stop frame, update motor as instructed
-                switch (motorNumber)
-                {
-                    // Motor 1 source is TA1.1
-                    case 1:
-                        TA1CCR1 = pulseLength;
-                        break;
-                    // Motor 2 source is TA1.2
-                    case 2:
-                        TA1CCR2 = pulseLength;
-                        break;
-                    // Motor 3 source is TA1.3
-                    case 3:
-                        TA1CCR3 = pulseLength;
-                        break;
-                    // Motor 4 source is TA1.4
-                    case 4:
-                        TA1CCR4 = pulseLength;
-                        break;
-                    // Motor 5 source is TA2.1
-                    case 5:
-                        TA2CCR1 = pulseLength;
-                        break;
-                    // Motor 6 source is TA2.2
-                    case 6:
-                        TA2CCR2 = pulseLength;
-                        break;
-                    // Motor 7 source is TA2.3
-                    case 7:
-                        TA2CCR3 = pulseLength;
-                        break;
-                    // Motor 8 source is TA2.4
-                    case 8:
-                        TA2CCR4 = pulseLength;
-                        break;
-                    // If none of these conditions are met, there has been a communications error
-                    default:
-                        // Follow error procedure
-                        while(!queueEmpty(transmit))
-                        {
-                            // Empty out the transmit queue
-                            queuePop(transmit);
-                        }
+                // Motor 1 source is TA1.1
+                case 1:
+                    TA1CCR1 = pulseLength;
+                    break;
+                // Motor 2 source is TA1.2
+                case 2:
+                    TA1CCR2 = pulseLength;
+                    break;
+                // Motor 3 source is TA1.3
+                case 3:
+                    TA1CCR3 = pulseLength;
+                    break;
+                // Motor 4 source is TA1.4
+                case 4:
+                    TA1CCR4 = pulseLength;
+                    break;
+                // Motor 5 source is TA2.1
+                case 5:
+                    TA2CCR1 = pulseLength;
+                    break;
+                // Motor 6 source is TA2.2
+                case 6:
+                    TA2CCR2 = pulseLength;
+                    break;
+                // Motor 7 source is TA2.3
+                case 7:
+                    TA2CCR3 = pulseLength;
+                    break;
+                // Motor 8 source is TA2.4
+                case 8:
+                    TA2CCR4 = pulseLength;
+                    break;
+                // If none of these conditions are met, there has been a communications error
+                default:
+                    // Follow error procedure
+                    while(!queueEmpty(transmit))
+                    {
+                        // Empty out the transmit queue
+                        queuePop(transmit);
+                    }
 
-                        // Fill transmit queue with error message
-                        queuePush(transmit, START_STOP_FRAME);
-                        queuePush(transmit, ERROR_FRAME);
-                        queuePush(transmit, COMMUNICATION_ERROR);
-                        queuePush(transmit, START_STOP_FRAME);
+                    // Fill transmit queue with error message
+                    queuePush(transmit, START_STOP_FRAME);
+                    queuePush(transmit, ERROR_FRAME);
+                    queuePush(transmit, COMMUNICATION_ERROR);
+                    queuePush(transmit, START_STOP_FRAME);
 
-                        // Begin transmission and enter infinite while loop
-                        uartBeginCompTransmit();
-                        while(1);
-                }
+                    // Begin transmission and enter infinite while loop
+                    uartBeginCompTransmit();
+                    while(1);
             }
         }
 
@@ -309,7 +310,7 @@ void main(void)
                     // If a stop frame was read, begin the pneumatics firing process
                     uint8_t beginFire[3];
                     beginFire[0] = START_STOP_FRAME;
-                    beginFire[1] = fireActuator;
+                    beginFire[1] = currentActuator;
                     beginFire[2] = START_STOP_FRAME;
 
                     // Update state to indicate that firing is beginning
