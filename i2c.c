@@ -1,6 +1,13 @@
 #include "i2c.h"
 
 
+// Declare global variables
+extern volatile queue_t* eventList;
+extern volatile queue_t* transmit;
+extern volatile uint8_t i2cState;
+extern volatile uint32_t depthRead;
+
+
 /*********************************** NOTES ***********************************
  * - Depth Sensor SCL operates at a maximum frequency of 400kHz
  * - We use the OSR 256 depth reading because it is the fastest option
@@ -32,7 +39,7 @@ void i2cConfigure(void)
 }
 
 
-void EUSCIB1_IRQHandler(void)
+extern void EUSCIB0_IRQHandler(void)
 {
     // If a transmit interrupt called the handler, check what state we are in
     if(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0)

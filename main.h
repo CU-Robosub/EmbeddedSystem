@@ -2,24 +2,20 @@
 #define MAIN_H_
 
 
+#include "msp.h"
+#include "adc.h"
+#include "i2c.h"
+#include "uart.h"
+#include "gpio.h"
+#include "timer.h"
+#include "clock.h"
+#include "stdint.h"
+#include "queue.h"
+
+
 #define DCOCLK_FREQ     48000000    // DCO clock frequency
 #define HSMCLK_FREQ     48000000    // HSM clock frequency
 #define SMCLK_FREQ      12000000    // SM clock frequency
-
-
-// Global variables
-queue_t events;
-queue_t pneumaticsReceiveQueue;
-queue_t motorReceiveQueue;
-queue_t transmitQueue;
-volatile queue_t* eventList = &events;
-volatile queue_t* pneumaticsReceive = &PneumaticsReceiveQueue;
-volatile queue_t* motorReceive = &motorReceiveQueue;
-volatile queue_t* transmit = &transmitQueue;
-volatile uint8_t pneumaticsState;
-volatile uint8_t currentActuator;
-volatile uint8_t i2cState;
-volatile uint32_t depthRead;
 
 
 enum scheduleEvents

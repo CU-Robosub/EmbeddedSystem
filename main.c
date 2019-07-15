@@ -1,13 +1,29 @@
 // Include all headers
-#include "queue.h"
-#include "msp.h"
-#include "adc.h"
-#include "i2c.h"
-#include "uart.h"
-#include "gpio.h"
-#include "timer.h"
-#include "clock.h"
 #include "main.h"
+
+
+// Global variables
+queue_t events;
+queue_t pneumaticsReceiveQueue;
+queue_t motorReceiveQueue;
+queue_t transmitQueue;
+volatile queue_t* eventList = &events;
+volatile queue_t* pneumaticsReceive = &pneumaticsReceiveQueue;
+volatile queue_t* motorReceive = &motorReceiveQueue;
+volatile queue_t* transmit = &transmitQueue;
+volatile uint8_t pneumaticsState;
+volatile uint8_t currentActuator;
+volatile uint8_t i2cState;
+volatile uint8_t powerConversionDone;
+volatile uint8_t motorConversionDone;
+volatile uint32_t depthRead;
+
+
+/* CURRENT DESIGN DOES NOT HAVE I2C ENABLED, TO REENABLE
+ * UNCOMMENT THE I2C CONFIGURATION FUNCTION IN MAIN.C,
+ * UNCOMMENT THE DEPTH SENSOR ROUTINES IN THE SCHEDULER IN MAIN.C,
+ * UNCOMMENT THE DEPTH SENSOR READ PORTION OF THE INTERRUPT IN TIMER.C
+ */
 
 
 void main(void)
@@ -15,10 +31,11 @@ void main(void)
 	WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// Stop watchdog timer
 	clockConfigure();
 	adcConfigure();
+    gpioConfigure();
+//    i2cConfigure();       REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
+    timerConfigure();
 	uartCompConfigure();
 	uartPneumaticsConfigure();
-	gpioConfigure();
-	timerConfigure();
 
 	// Declare/initialize variables for main loop
 	uint8_t scheduleEvent = NO_EVENT;
@@ -28,6 +45,30 @@ void main(void)
 	i2cState = I2C_READY;
 	currentActuator = 0;
 	depthRead = 0;
+	powerConversionDone = 1;    // Indicate that ADC conversions are ready
+	motorConversionDone = 1;
+	uint32_t i = 0;  // for loop index
+
+	// Erase all queues/lists
+	eventList->head = 0;
+	eventList->tail = 0;
+	eventList->quantity = 0;
+	pneumaticsReceive->head = 0;
+	pneumaticsReceive->tail = 0;
+	pneumaticsReceive->quantity = 0;
+	motorReceive->head = 0;
+	motorReceive->tail = 0;
+	motorReceive->quantity = 0;
+	transmit->head = 0;
+	transmit->tail = 0;
+	transmit->quantity = 0;
+	for(i = 0;i < QUEUE_SIZE;i++)
+	{
+	    eventList->elements[i] = 0;
+	    pneumaticsReceive->elements[i] = 0;
+	    motorReceive->elements[i] = 0;
+	    transmit->elements[i] = 0;
+	}
 
 	// Run the scheduler in the main loop
 	// TODO: Upgrade scheduler to an RTOS
@@ -41,6 +82,8 @@ void main(void)
 	    {
 	        // Code
 	    }
+
+	    /* REMOVED I2C FROM CURRENT DESIGN TO FOCUS ON GETTING EVERYTHING ELSE WORKING
 
 	    // Begin the I2C communication with the depth sensor
 	    else if(scheduleEvent == DEPTH_SENSOR_READ_START)
@@ -59,6 +102,7 @@ void main(void)
 	    }
 
 	    // Transmit depth sensor data to the computer
+        // TODO: Check for 0xC0 or 0xDB values and update accordingly before transmitting
         else if(scheduleEvent == DEPTH_SENSOR_READ_FINISH)
         {
             // If the transmit queue is empty, begin queuing data to transmit
@@ -90,19 +134,35 @@ void main(void)
             }
         }
 
+        END OF I2C SECTION, UNCOMMENT TO CONTINUE WORKING ON I2C */
+
 	    // Begin an ADC conversion for the motor currents
         else if(scheduleEvent == MOTOR_CURRENT_READ_START)
         {
-            ADC14->CTL1 &= ~ADC14_CTL1_CSTARTADD_MASK;         // Set start address to MEM0
-            while(!(ADC14->CTL0 & ADC14_CTL0_BUSY));           // Wait until the ADC is not busy
-            ADC14->CTL0 |= ADC14_CTL0_SC;                      // Start a conversion
+            // If the ADC is not busy
+            if(!(ADC14->CTL0 & ADC14_CTL0_BUSY))
+            {
+                // Disable ADC encoding to change the conversion start address to MEM0
+                ADC14->CTL0 &= ~ADC14_CTL0_ENC;
+                ADC14->CTL1 &= ~ADC14_CTL1_CSTARTADD_MASK;
+
+                // Enable ADC encoding and start a conversion
+                ADC14->CTL0 |= ADC14_CTL0_ENC;
+                ADC14->CTL0 |= ADC14_CTL0_SC;
+            }
+
+            // If the ADC is busy, try again later
+            else
+            {
+                queuePush(eventList, POWER_CURRENT_READ_START);
+            }
         }
 
 	    // Transmit the motor current data to the computer
         else if(scheduleEvent == MOTOR_CURRENT_READ_FINISH)
         {
             // Update motor currents data from MEM0 to MEM7
-            for(int i = 0;i < 8;i++)
+            for(i = 0;i < 8;i++)
             {
                 motorCurrents[2*i] = (uint8_t) ADC14->MEM[i] & 0xFF;             // Store lower half of conversions
                 motorCurrents[(2*i)+1] = (uint8_t) (ADC14->MEM[i] >> 8) & 0xFF;  // Store upper half of conversions
@@ -116,9 +176,29 @@ void main(void)
                 queuePush(transmit, MOTOR_CURRENT_FRAME);
 
                 // Fill transmit queue with motorCurrents data
-                for(int i = 0;i < 16;i++)
+                for(i = 0;i < 16;i++)
                 {
-                    queuePush(transmit, motorCurrents[i]);
+                    // Before filling check if the data frame is equal to a start stop frame
+                    if(motorCurrents[i] == START_STOP_FRAME)
+                    {
+                        // If it is, send an escape frame and a C0 frame
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, C0_FRAME);
+                    }
+
+                    // Also check if the data frame is equal to an escape frame
+                    else if(motorCurrents[i] == ESCAPE_FRAME)
+                    {
+                        // If it is, send an escape frame and a DB frame
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, DB_FRAME);
+                    }
+
+                    // If the data is not a unique frame, send it
+                    else
+                    {
+                        queuePush(transmit, motorCurrents[i]);
+                    }
                 }
 
                 // Add end frame to queue
@@ -126,8 +206,12 @@ void main(void)
 
                 // Begin UART transmission
                 uartBeginCompTransmit();
+
+                // Indicate that a motor conversion is done
+                motorConversionDone = 1;
             }
-            // If the transmit queue isn't empty, try again later
+
+            // If the transmit queue is busy, try again later
             else
             {
                 queuePush(eventList, MOTOR_CURRENT_READ_FINISH);
@@ -137,17 +221,31 @@ void main(void)
 	    // Begin an ADC conversion for the power lines
         else if(scheduleEvent == POWER_CURRENT_READ_START)
         {
-            ADC14->CTL1 &= ~ADC14_CTL1_CSTARTADD_MASK;         // Clear start address bits
-            ADC14->CTL1 |= 0x00080000;                         // Set start address to MEM8
-            while(!(ADC14->CTL0 & ADC14_CTL0_BUSY));           // Wait until the ADC is not busy
-            ADC14->CTL0 |= ADC14_CTL0_SC;                      // Start a conversion
+            // If the ADC is not busy
+            if(!(ADC14->CTL0 & ADC14_CTL0_BUSY))
+            {
+                // Disable ADC encoding to change the conversion start address to MEM8
+                ADC14->CTL0 &= ~ADC14_CTL0_ENC;
+                ADC14->CTL1 &= ~ADC14_CTL1_CSTARTADD_MASK;
+                ADC14->CTL1 |= 0x00080000;
+
+                // Enable ADC encoding and start a conversion
+                ADC14->CTL0 |= ADC14_CTL0_ENC;
+                ADC14->CTL0 |= ADC14_CTL0_SC;
+            }
+
+            // If the ADC is busy, try again later
+            else
+            {
+                queuePush(eventList, POWER_CURRENT_READ_START);
+            }
         }
 
 	    // Transmit the power current data to the computer
         else if(scheduleEvent == POWER_CURRENT_READ_FINISH)
         {
             // Update power currents data from MEM8 to MEM13
-            for(int i = 0;i < 6;i++)
+            for(i = 0;i < 6;i++)
             {
                 powerStatus[2*i] = (uint8_t) ADC14->MEM[i+8] & 0xFF;
                 powerStatus[(2*i)+1] = (uint8_t) (ADC14->MEM[i+8] >> 8) & 0xFF;
@@ -164,9 +262,29 @@ void main(void)
                 queuePush(transmit, POWER_CURRENT_FRAME);
 
                 // Fill transmit queue with powerStatus data
-                for(int i = 0;i < 12;i++)
+                for(i = 0;i < 12;i++)
                 {
-                    queuePush(transmit, powerStatus[i]);
+                    // Before filling check if the data frame is equal to a start stop frame
+                    if(powerStatus[i] == START_STOP_FRAME)
+                    {
+                        // If it is, send an escape frame and a C0 frame
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, C0_FRAME);
+                    }
+
+                    // Also check if the data frame is equal to an escape frame
+                    else if(powerStatus[i] == ESCAPE_FRAME)
+                    {
+                        // If it is, send an escape frame and a DB frame
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, DB_FRAME);
+                    }
+
+                    // If the data is not a unique frame, send it
+                    else
+                    {
+                        queuePush(transmit, powerStatus[i]);
+                    }
                 }
 
                 // Add end frame to queue
@@ -174,8 +292,12 @@ void main(void)
 
                 // Begin UART transmission
                 uartBeginCompTransmit();
+
+                // Indicate that a power conversion is done
+                powerConversionDone = 1;
             }
-            // If the transmit queue isn't empty, try again later
+
+            // If the transmit queue is busy, try again later
             else
             {
                 queuePush(eventList, POWER_CURRENT_READ_FINISH);

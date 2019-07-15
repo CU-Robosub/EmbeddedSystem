@@ -3,8 +3,9 @@
 
 
 #include "queue.h"
-#include "msp.h"
 #include "adc.h"
+#include "msp.h"
+#include "stdint.h"
 #include "main.h"
 
 /*** Motor PWM Signals ****
@@ -23,10 +24,6 @@
 #define INT_COUNT_1HZ   60      // Interrupt at a 1 Hz rate
 
 
-// Declare global variables
-extern volatile queue_t* eventList;
-
-
 /**********************************************************************
  * FUNCTION NAME:       timerConfigure
  * FUNCTION PURPOSE:    Configures all required timer peripherals to
@@ -36,6 +33,6 @@ extern volatile queue_t* eventList;
  * OUTPUTS:
  *  -None
  *********************************************************************/
-void timerConfigure();
+void timerConfigure(void);
 
 #endif /* TIMER_H_ */

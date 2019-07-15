@@ -1,7 +1,7 @@
 #include "gpio.h"
 
 
-void gpioConfigure()
+void gpioConfigure(void)
 {
     // Pins for eUSCI_A0 UART line (Computer)
     P1SEL0  |= BIT2 | BIT3;             // Set pins to primary mode

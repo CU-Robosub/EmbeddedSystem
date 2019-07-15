@@ -3,11 +3,12 @@
 
 
 #include "queue.h"
-#include "msp.h"
 #include "adc.h"
 #include "uart.h"
 #include "gpio.h"
 #include "timer.h"
+#include "msp.h"
+#include "stdint.h"
 #include "main.h"
 
 
@@ -16,12 +17,6 @@
 #define DEPTH_SENSOR_RESET_COMMAND      0x1E
 #define DEPTH_SENSOR_DEPTH_CONVERSION   0x40
 #define DEPTH_SENSOR_ADC_READ           0x00
-
-
-// Declare global variables
-extern volatile queue_t* eventList;
-extern volatile uint8_t i2cState;
-extern volatile uint32_t depthRead;
 
 
 // Enumeration for states during depth sensor reading

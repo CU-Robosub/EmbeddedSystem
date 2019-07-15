@@ -1,7 +1,7 @@
 #include "clock.h"
 
 
-void clockConfigure()
+void clockConfigure(void)
 {
     // Set the core voltage higher to support higher clock frequency
     PCM->CTL0 |= PCM_CTL0_AMR__AM_LDO_VCORE1;

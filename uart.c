@@ -1,7 +1,16 @@
 #include "uart.h"
 
 
-void uartCompConfigure()
+// Declare global variables
+extern volatile queue_t* eventList;
+extern volatile queue_t* pneumaticsReceive;
+extern volatile queue_t* motorReceive;
+extern volatile queue_t* transmit;
+extern volatile uint8_t pneumaticsState;
+extern volatile uint8_t currentActuator;
+
+
+void uartCompConfigure(void)
 {
     // Disable eUSCI to configure UART
     EUSCI_A0->CTLW0 |= EUSCI_A_CTLW0_SWRST;
@@ -43,7 +52,7 @@ void uartBeginCompTransmit(void)
 }
 
 
-void uartPneumaticsConfigure()
+void uartPneumaticsConfigure(void)
 {
     // Disable eUSCI to configure UART
     EUSCI_A1->CTLW0 |= EUSCI_A_CTLW0_SWRST;
@@ -91,7 +100,7 @@ void uartSendPneumaticsN(uint8_t * data, uint32_t length)
 }
 
 
-void EUSCIA0_IRQHandler(void)
+extern void EUSCIA0_IRQHandler(void)
 {
     // INTERRUPTS ARE CLEARED AT THE END TO AVOID CALLING ANOTHER INTERRUPT AFTER CLEARNING A FLAG
     // This will end up storing all data and the end frames in the corresponding queue (motor or pneumatics)
@@ -263,7 +272,7 @@ void EUSCIA0_IRQHandler(void)
 }
 
 
-void EUSCIA1_IRQHandler(void)
+extern void EUSCIA1_IRQHandler(void)
 {
     // Check if a receiving interrupt flag is set
     if (EUSCI_A1->IFG & EUSCI_A_IFG_RXIFG);

@@ -3,8 +3,9 @@
 
 
 #include "queue.h"
-#include "msp.h"
 #include "uart.h"
+#include "msp.h"
+#include "stdint.h"
 #include "main.h"
 
 
@@ -13,10 +14,6 @@
 // Read Voltage = ADC Value * ADC resolution = MEM[x] * 0.20146 mV
 // Sense resistor voltage drop (Differential Voltage) = Read Voltage / 20 = MEM[x] * 0.010073
 // Sense resistor current = Differential Voltage / Sense resistance = Line Current
-
-
-// Declare global variables
-extern volatile queue_t* eventList;
 
 
 /**********************************************************************
@@ -30,7 +27,7 @@ extern volatile queue_t* eventList;
  * OUTPUTS:
  *  -None
  *********************************************************************/
-void adcConfigure();
+void adcConfigure(void);
 
 
 #endif /* ADC_H_ */

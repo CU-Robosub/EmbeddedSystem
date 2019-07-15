@@ -3,6 +3,7 @@
 
 
 #include "msp.h"
+#include "stdint.h"
 #include "main.h"
 
 
@@ -19,7 +20,7 @@
  * OUTPUTS:
  *  -None
  *********************************************************************/
-void gpioConfigure();
+void gpioConfigure(void);
 
 
 /**********************************************************************

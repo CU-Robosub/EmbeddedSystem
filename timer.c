@@ -1,7 +1,14 @@
 #include "timer.h"
 
 
-void timerConfigure()
+// Declare global variables
+extern volatile queue_t* eventList;
+extern volatile queue_t* transmit;
+extern volatile uint8_t powerConversionDone;
+extern volatile uint8_t motorConversionDone;
+
+
+void timerConfigure(void)
 {
     /*** Configure TA0 to control interrupts ***
      * Clock Frequency = 300 kHz
@@ -56,7 +63,7 @@ void timerConfigure()
 
 
 // Crude scheduler interrupt routine
-void TA0_0_IRQHandler()
+extern void TA0_0_IRQHandler(void)
 {
     // Assure that the right interrupt flag triggered (should only be one)
     if(!(TA0CCTL0 & TIMER_A_CCTLN_CCIFG))
@@ -75,6 +82,8 @@ void TA0_0_IRQHandler()
     // Increment counters
     motorCurrents++;
     powerStatus++;
+
+    /* REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
 
     // Every interrupt, schedule a pressure sensor reading
     if(!queuePush(eventList, DEPTH_SENSOR_READ_START))
@@ -97,10 +106,12 @@ void TA0_0_IRQHandler()
         while(1);
     }
 
+    */
+
     // Check if it is time to read motor currents
-    if(motorCurrents >= INT_COUNT_4HZ)
+    if((motorCurrents >= INT_COUNT_4HZ) && motorConversionDone)
     {
-        // If this is a 4 Hz interrupt, schedule a motor currents reading and reset counter
+        // If this is a 4 Hz interrupt, schedule a motor currents reading
         if(!queuePush(eventList, MOTOR_CURRENT_READ_START))
         {
             // If queue is full, this is an error
@@ -120,9 +131,15 @@ void TA0_0_IRQHandler()
             uartBeginCompTransmit();
             while(1);
         }
+
+        // Reset the motor currents counter
+        motorCurrents = 0;
+
+        // Indicate that a motor conversion has begun
+        motorConversionDone = 0;
     }
 
-    if(powerStatus >= INT_COUNT_1HZ)
+    if((powerStatus >= INT_COUNT_1HZ) && powerConversionDone)
     {
         // If this is a 1 Hz interrupt, schedule a power check
         if(!queuePush(eventList, POWER_CURRENT_READ_START))
@@ -144,5 +161,11 @@ void TA0_0_IRQHandler()
             uartBeginCompTransmit();
             while(1);
         }
+
+        // Reset the power check counter
+        powerStatus = 0;
+
+        // Indicate that a power conversion has begun
+        powerConversionDone = 0;
     }
 }

@@ -4,6 +4,7 @@
 
 #include "queue.h"
 #include "msp.h"
+#include "stdint.h"
 #include "main.h"
 
 
@@ -20,15 +21,6 @@
 #define MOTOR_CURRENT_FRAME     0xDD
 #define POWER_CURRENT_FRAME     0xEE
 #define ERROR_FRAME             0xFF
-
-
-// Declare global variables
-extern volatile queue_t* eventList;
-extern volatile queue_t* pneumaticsReceive;
-extern volatile queue_t* motorReceive;
-extern volatile queue_t* transmit;
-extern volatile uint8_t pneumaticsState;
-extern volatile uint8_t currentActuator;
 
 
 // Enumeration for the different receiving states
@@ -56,7 +48,7 @@ enum compReceiveStates
  * OUTPUTS:
  *  -None
  *********************************************************************/
-void uartCompConfigure();
+void uartCompConfigure(void);
 
 
 /**********************************************************************
@@ -83,7 +75,7 @@ void uartBeginCompTransmit(void);
  * OUTPUTS:
  *  -None
  *********************************************************************/
-void uartPneumaticsConfigure();
+void uartPneumaticsConfigure(void);
 
 
 /**********************************************************************
