@@ -1,5 +1,18 @@
 #include "gpio.h"
 
+void gpioConfigurePnumatics(void)
+{
+
+    // Pins for eUSCI_A0 UART line (Computer)
+    P1SEL0  |= BIT2 | BIT3;             // Set pins to primary mode
+    P1SEL1  &= ~(BIT2 | BIT3);          // P1.2 = RX, P1.3 = TX
+
+    // Pins for pnumatics
+    P3SEL0  &= ~(BIT0 | BIT1 | BIT2 | BIT3 | BIT4 | BIT5 | BIT6 | BIT7);
+    P3SEL1  &= ~(BIT0 | BIT1 | BIT2 | BIT3 | BIT4 | BIT5 | BIT6 | BIT7);  // Set pins to gpio mode
+    P3DIR   |= BIT0 | BIT1 | BIT2 | BIT3 | BIT4 | BIT5 | BIT6 | BIT7;     // Set pins to outputs
+    P3OUT   &= ~(BIT0 | BIT1 | BIT2 | BIT3 | BIT4 | BIT5 | BIT6 | BIT7);  // Assure pins are off
+}
 
 void gpioConfigure(void)
 {

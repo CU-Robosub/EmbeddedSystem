@@ -17,6 +17,9 @@
 #define HSMCLK_FREQ     48000000    // HSM clock frequency
 #define SMCLK_FREQ      12000000    // SM clock frequency
 
+#define UART_RX_BUFFER_SIZE 20
+
+#define EMBEDDED_SYSTEM
 
 enum scheduleEvents
 {
@@ -28,7 +31,7 @@ enum scheduleEvents
     POWER_CURRENT_READ_START,
     POWER_CURRENT_READ_FINISH,
     MOTOR_COMMAND_RECEIVED,
-    PNEUMATICS_COMMAND_RECEIVED
+    PNEUMATICS_COMMAND_RECEIVED,
 };
 
 

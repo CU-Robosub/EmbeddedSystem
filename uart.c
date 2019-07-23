@@ -9,6 +9,36 @@ extern volatile queue_t* transmit;
 extern volatile uint8_t pneumaticsState;
 extern volatile uint8_t currentActuator;
 
+void uartConfigurePnumatics(void)
+{
+    // Disable eUSCI to configure UART
+    EUSCI_A0->CTLW0 |= EUSCI_A_CTLW0_SWRST;
+
+    // Configure UART
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_SSEL_MASK;    // Clear clock select bits
+    EUSCI_A0->CTLW0 |= EUSCI_A_CTLW0_SSEL__SMCLK;   // Use SMCLK as source clock
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_SYNC;         // Enables asynchronous mode
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_MODE0;        // Select UART as asynchronous operation
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_MODE1;
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_PEN;          // Disable parity
+    EUSCI_A0->CTLW0 &= ~EUSCI_B_CTLW0_MSB;          // LSB first
+    EUSCI_A0->CTLW0 &= ~EUSCI_B_CTLW0_SEVENBIT;     // 8-bit data
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_SPB;          // 1 stop bit
+
+    // Makes the Baud Rate 115200
+    // Information on setting Baud Rate can be found on page 735 of the Technical Reference Manual
+    EUSCI_A0->MCTLW |= EUSCI_A_MCTLW_OS16;          // Enables over sampling mode
+    EUSCI_A0->BRW   |= 0x06;                        // Prescaler of Baud (UCBRx)
+    EUSCI_A0->MCTLW |= 0xAA80;                      // Determine the Second Mod stage (UCBRSx) and the Mod pattern (UCBRFx)
+
+    // Disable eUSCI reset to enable the line
+    EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_SWRST;
+
+    // Enable the RX interrupt for eUSCI_A0
+    EUSCI_A0->IE |= EUSCI_A_IE_RXIE;                // Enables the Rx Interrupt
+    NVIC_EnableIRQ(EUSCIA0_IRQn);                   // Enables interrupts on the NVIC (watching flags)
+
+}
 
 void uartCompConfigure(void)
 {
@@ -38,6 +68,7 @@ void uartCompConfigure(void)
 
     // Disable eUSCI reset to enable the line
     EUSCI_A0->CTLW0 &= ~EUSCI_A_CTLW0_SWRST;
+
 }
 
 
@@ -99,9 +130,67 @@ void uartSendPneumaticsN(uint8_t * data, uint32_t length)
     }
 }
 
+typedef enum {
+    KISS_STATE_NORMAL,
+    KISS_STATE_ESCAPE,
+} KISS_STATE;
 
-extern void EUSCIA0_IRQHandler(void)
+
+KISS_STATE uart_kiss_state;
+
+extern volatile uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
+extern volatile uint8_t uart_rx_buffer_pos;
+
+void pnumatics_uart_irq(void)
 {
+
+    if(EUSCI_A0->IFG & EUSCI_A_IFG_RXIFG)
+    {
+
+        uint8_t received = EUSCI_A0->RXBUF;         // Reading here also clears receive interrupt flag
+
+        switch(uart_kiss_state)
+        {
+            case KISS_STATE_NORMAL:
+                switch(received)
+                {
+                    case START_STOP_FRAME:
+                        if(uart_rx_buffer_pos > 0){
+                            queuePush(eventList, PNEUMATICS_COMMAND_RECEIVED);
+                            EUSCI_A0->IE &= ~(EUSCI_A_IE_RXIE);
+                        }
+                        break;
+                    case ESCAPE_FRAME:
+                        uart_kiss_state = KISS_STATE_ESCAPE;
+                        break;
+                    default:
+                        uart_rx_buffer[uart_rx_buffer_pos++] = received;
+                        break;
+                }
+                break;
+            case KISS_STATE_ESCAPE:
+                switch(received)
+                {
+                    case C0_FRAME:
+                        uart_rx_buffer[uart_rx_buffer_pos++] = 0xC0;
+                        break;
+                    case DB_FRAME:
+                        uart_rx_buffer[uart_rx_buffer_pos++] = 0xDB;
+                        break;
+                }
+                uart_kiss_state = KISS_STATE_NORMAL;
+                break;
+        }
+
+        if(uart_rx_buffer_pos >= UART_RX_BUFFER_SIZE){
+            uart_rx_buffer_pos--;
+        }
+
+    }
+
+}
+
+void embedded_uart_irq(void){
     // INTERRUPTS ARE CLEARED AT THE END TO AVOID CALLING ANOTHER INTERRUPT AFTER CLEARNING A FLAG
     // This will end up storing all data and the end frames in the corresponding queue (motor or pneumatics)
     //  NOTE: This does not queue the start frame or the instruction frame because there are function specific queues
@@ -269,6 +358,18 @@ extern void EUSCIA0_IRQHandler(void)
 
     // Clear interrupt flags
     EUSCI_A0->IFG &= ~(EUSCI_A_IFG_RXIFG | EUSCI_A_IFG_TXIFG);
+
+}
+
+extern void EUSCIA0_IRQHandler(void)
+{
+    #ifdef EMBEDDED_SYSTEM
+    embedded_uart_irq();
+    #endif
+    #ifdef PNUMATICS_SYSTEM
+    pnumatics_uart_irq();
+    #endif
+
 }
 
 

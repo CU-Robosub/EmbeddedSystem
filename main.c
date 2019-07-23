@@ -18,6 +18,12 @@ volatile uint8_t powerConversionDone;
 volatile uint8_t motorConversionDone;
 volatile uint32_t depthRead;
 
+volatile uint16_t tickCounter;
+volatile uint16_t pnumaticsOffTick[8];
+
+volatile uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
+volatile uint8_t uart_rx_buffer_pos;
+
 
 /* CURRENT DESIGN DOES NOT HAVE I2C ENABLED, TO REENABLE
  * UNCOMMENT THE I2C CONFIGURATION FUNCTION IN MAIN.C,
@@ -25,83 +31,81 @@ volatile uint32_t depthRead;
  * UNCOMMENT THE DEPTH SENSOR READ PORTION OF THE INTERRUPT IN TIMER.C
  */
 
-
-void main(void)
-{
-	WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// Stop watchdog timer
-	clockConfigure();
-	adcConfigure();
+void main_embedded(){
+    WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;     // Stop watchdog timer
+    clockConfigure();
+    adcConfigure();
     gpioConfigure();
 //    i2cConfigure();       REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
     timerConfigure();
-	uartCompConfigure();
-	uartPneumaticsConfigure();
+    uartCompConfigure();
+    uartPneumaticsConfigure();
 
-	// Declare/initialize variables for main loop
-	uint8_t scheduleEvent = NO_EVENT;
-	uint8_t motorCurrents[16];
-	uint8_t powerStatus[12];
-	pneumaticsState = PNEUMATICS_READY;
-	i2cState = I2C_READY;
-	currentActuator = 0;
-	depthRead = 0;
-	powerConversionDone = 1;    // Indicate that ADC conversions are ready
-	motorConversionDone = 1;
-	uint32_t i = 0;  // for loop index
+    // Declare/initialize variables for main loop
+    uint8_t scheduleEvent = NO_EVENT;
+    uint8_t motorCurrents[16];
+    uint8_t powerStatus[12];
+    pneumaticsState = PNEUMATICS_READY;
+    i2cState = I2C_READY;
+    currentActuator = 0;
+    depthRead = 0;
+    powerConversionDone = 1;    // Indicate that ADC conversions are ready
+    motorConversionDone = 1;
+    uint32_t i = 0;  // for loop index
 
-	// Erase all queues/lists
-	eventList->head = 0;
-	eventList->tail = 0;
-	eventList->quantity = 0;
-	pneumaticsReceive->head = 0;
-	pneumaticsReceive->tail = 0;
-	pneumaticsReceive->quantity = 0;
-	motorReceive->head = 0;
-	motorReceive->tail = 0;
-	motorReceive->quantity = 0;
-	transmit->head = 0;
-	transmit->tail = 0;
-	transmit->quantity = 0;
-	for(i = 0;i < QUEUE_SIZE;i++)
-	{
-	    eventList->elements[i] = 0;
-	    pneumaticsReceive->elements[i] = 0;
-	    motorReceive->elements[i] = 0;
-	    transmit->elements[i] = 0;
-	}
+    // Erase all queues/lists
+    eventList->head = 0;
+    eventList->tail = 0;
+    eventList->quantity = 0;
+    pneumaticsReceive->head = 0;
+    pneumaticsReceive->tail = 0;
+    pneumaticsReceive->quantity = 0;
+    motorReceive->head = 0;
+    motorReceive->tail = 0;
+    motorReceive->quantity = 0;
+    transmit->head = 0;
+    transmit->tail = 0;
+    transmit->quantity = 0;
+    for(i = 0;i < QUEUE_SIZE;i++)
+    {
+        eventList->elements[i] = 0;
+        pneumaticsReceive->elements[i] = 0;
+        motorReceive->elements[i] = 0;
+        transmit->elements[i] = 0;
+    }
 
-	// Run the scheduler in the main loop
-	// TODO: Upgrade scheduler to an RTOS
-	while(1)
-	{
-	    // Begin each loop by grabbing the next event
-	    scheduleEvent = queuePop(eventList);
+    // Run the scheduler in the main loop
+    // TODO: Upgrade scheduler to an RTOS
+    while(1)
+    {
+        // Begin each loop by grabbing the next event
+        scheduleEvent = queuePop(eventList);
 
-	    // Nothing to perform, go to sleep and wait
-	    if(scheduleEvent == NO_EVENT)
-	    {
-	        // Code
-	    }
+        // Nothing to perform, go to sleep and wait
+        if(scheduleEvent == NO_EVENT)
+        {
+            // Code
+        }
 
-	    /* REMOVED I2C FROM CURRENT DESIGN TO FOCUS ON GETTING EVERYTHING ELSE WORKING
+        /* REMOVED I2C FROM CURRENT DESIGN TO FOCUS ON GETTING EVERYTHING ELSE WORKING
 
-	    // Begin the I2C communication with the depth sensor
-	    else if(scheduleEvent == DEPTH_SENSOR_READ_START)
-	    {
-	        // Check if an I2C reading is currently happening
-	        if(i2cState == I2C_READY)
-	        {
-	            // If I2C is ready for another conversion, begin the next conversion
-	            i2cState = ADDRESS_SENT_CONVERSION;         // Update the state machine
-	            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
-	            EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
-	            EUSCI_B0->IFG   &= ~EUSCI_B_IFG_TXIFG0;     // Clear transmit flag before enabling the interupt
-	            EUSCI_B0->IE    |= EUSCI_B_IE_TXIE0;        // Enable the TX interrupt for communication
-	        }
-	        // If I2C isn't ready for another conversion, just skip it because it does 60 per second
-	    }
+        // Begin the I2C communication with the depth sensor
+        else if(scheduleEvent == DEPTH_SENSOR_READ_START)
+        {
+            // Check if an I2C reading is currently happening
+            if(i2cState == I2C_READY)
+            {
+                // If I2C is ready for another conversion, begin the next conversion
+                i2cState = ADDRESS_SENT_CONVERSION;         // Update the state machine
+                EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
+                EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
+                EUSCI_B0->IFG   &= ~EUSCI_B_IFG_TXIFG0;     // Clear transmit flag before enabling the interupt
+                EUSCI_B0->IE    |= EUSCI_B_IE_TXIE0;        // Enable the TX interrupt for communication
+            }
+            // If I2C isn't ready for another conversion, just skip it because it does 60 per second
+        }
 
-	    // Transmit depth sensor data to the computer
+        // Transmit depth sensor data to the computer
         // TODO: Check for 0xC0 or 0xDB values and update accordingly before transmitting
         else if(scheduleEvent == DEPTH_SENSOR_READ_FINISH)
         {
@@ -136,7 +140,7 @@ void main(void)
 
         END OF I2C SECTION, UNCOMMENT TO CONTINUE WORKING ON I2C */
 
-	    // Begin an ADC conversion for the motor currents
+        // Begin an ADC conversion for the motor currents
         else if(scheduleEvent == MOTOR_CURRENT_READ_START)
         {
             // If the ADC is not busy
@@ -158,7 +162,7 @@ void main(void)
             }
         }
 
-	    // Transmit the motor current data to the computer
+        // Transmit the motor current data to the computer
         else if(scheduleEvent == MOTOR_CURRENT_READ_FINISH)
         {
             // Update motor currents data from MEM0 to MEM7
@@ -218,7 +222,7 @@ void main(void)
             }
         }
 
-	    // Begin an ADC conversion for the power lines
+        // Begin an ADC conversion for the power lines
         else if(scheduleEvent == POWER_CURRENT_READ_START)
         {
             // If the ADC is not busy
@@ -241,7 +245,7 @@ void main(void)
             }
         }
 
-	    // Transmit the power current data to the computer
+        // Transmit the power current data to the computer
         else if(scheduleEvent == POWER_CURRENT_READ_FINISH)
         {
             // Update power currents data from MEM8 to MEM13
@@ -304,7 +308,7 @@ void main(void)
             }
         }
 
-	    // Change the PWM frequencies of motors based on received input
+        // Change the PWM frequencies of motors based on received input
         else if(scheduleEvent == MOTOR_COMMAND_RECEIVED)
         {
             // Read motor number and pulse length
@@ -391,7 +395,7 @@ void main(void)
             }
         }
 
-	    // Begin a transmission to the pneumatics board to fire
+        // Begin a transmission to the pneumatics board to fire
         else if(scheduleEvent == PNEUMATICS_COMMAND_RECEIVED)
         {
             // Check if there is currently an actuator being fired
@@ -443,5 +447,128 @@ void main(void)
                 }
             }
         }
-	}
+    }
+}
+
+#include <stddef.h>
+
+uint8_t crc8(uint8_t crc, uint8_t poly, uint8_t const *data, size_t len)
+{
+
+    uint8_t k;
+
+    while (len--) {
+
+        crc ^= *data++;
+
+        for (k = 0; k < 8; k++)
+        {
+            crc = crc & 0x80 ? (crc << 1) ^ poly : crc << 1;
+        }
+
+    }
+
+    crc &= 0xff;
+
+    return crc;
+
+}
+
+#define CRC8_INIT 0x00
+#define CRC8_POLY 0x07
+
+void main_pnumatics(){
+
+    WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;     // Stop watchdog timer
+    clockConfigure();
+    gpioConfigurePnumatics();
+    timerConfigurePnumatics();
+    uartConfigurePnumatics();
+
+    uint8_t scheduleEvent = NO_EVENT;
+
+    while(1){
+
+        scheduleEvent = queuePop(eventList);
+
+        // Nothing to perform, go to sleep and wait
+        if(scheduleEvent == NO_EVENT)
+        {
+            // Code
+        }
+
+        else if(scheduleEvent == PNEUMATICS_COMMAND_RECEIVED)
+        {
+
+            // Structure
+            // ACTUATOR TIME_ON CRC-8
+
+            // Validate packet CRC
+            uint8_t crc = crc8(CRC8_INIT, CRC8_POLY, uart_rx_buffer, uart_rx_buffer_pos - 1);
+            if(crc == uart_rx_buffer[uart_rx_buffer_pos - 1]){
+
+                // packet should be 3 bytes long
+                if(uart_rx_buffer_pos == 3){
+                    switch(uart_rx_buffer[0]){
+                        case 0x11:
+                            P3OUT   |= BIT0;
+                            pnumaticsOffTick[0] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x22:
+                            P3OUT   |= BIT1;
+                            pnumaticsOffTick[1] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x33:
+                            P3OUT   |= BIT2;
+                            pnumaticsOffTick[2] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x44:
+                            P3OUT   |= BIT3;
+                            pnumaticsOffTick[3] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x55:
+                            P3OUT   |= BIT4;
+                            pnumaticsOffTick[4] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x66:
+                            P3OUT   |= BIT5;
+                            pnumaticsOffTick[5] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x77:
+                            P3OUT   |= BIT6;
+                            pnumaticsOffTick[6] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        case 0x88:
+                            P3OUT   |= BIT7;
+                            pnumaticsOffTick[7] = tickCounter + uart_rx_buffer[1];
+                            break;
+                        default:
+                            // Invalid actuator
+                            break;
+
+                    }
+                } else {
+                    // Wrong packet length
+                }
+            } else {
+                // CRC Fail
+            }
+
+            uart_rx_buffer_pos = 0;
+            EUSCI_A0->IE |= EUSCI_A_IE_RXIE;
+
+        }
+
+    }
+
+}
+
+void main(void)
+{
+    #ifdef EMBEDDED_SYSTEM
+    main_embedded();
+    #endif
+    #ifdef PNUMATICS_SYSTEM
+    main_pnumatics();
+    #endif
 }

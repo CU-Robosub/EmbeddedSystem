@@ -37,6 +37,8 @@ enum compReceiveStates
 // 115200 baud for computer eUSCI_A0 (P1.2 and P1.3)
 
 
+void uartConfigurePnumatics(void);
+
 /**********************************************************************
  * FUNCTION NAME:       uartCompConfigure
  * FUNCTION PURPOSE:    Configures eUSCI0 as a 115200 baud, LSB first,

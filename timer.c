@@ -6,7 +6,21 @@ extern volatile queue_t* eventList;
 extern volatile queue_t* transmit;
 extern volatile uint8_t powerConversionDone;
 extern volatile uint8_t motorConversionDone;
+extern volatile uint16_t tickCounter;
+extern volatile uint16_t pnumaticsOffTick[8];
 
+void timerConfigurePnumatics(void)
+{
+
+    TA0CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__8 |   // Clock source: SMCLK, Clock divider: 8
+                TIMER_A_CTL_MC__UP;                             // Counting: Up Mode
+    TA0CCTL0 |= TIMER_A_CCTLN_CCIE;                             // Enable CCTL0 interrupt
+    TA0CCTL0 &= ~TIMER_A_CCTLN_CCIFG;                           // Clear CCTL0 interrupt flag
+    TA0EX0   |= TIMER_A_EX0_IDEX__5;                            // Input divider expansion: 5
+    TA0CCR0   = 5000;                                           // 5000 clock cycles per interrupt
+    NVIC_EnableIRQ(TA0_0_IRQn);                                 // Enable interrupts on the NVIC
+
+}
 
 void timerConfigure(void)
 {
@@ -61,10 +75,35 @@ void timerConfigure(void)
     TA2CCR4   = 3000;                                           // 1500 microsecond on-time, motor stopped
 }
 
+void pnumatics_irq(){
 
-// Crude scheduler interrupt routine
-extern void TA0_0_IRQHandler(void)
-{
+    // Assure that the right interrupt flag triggered (should only be one)
+    if(!(TA0CCTL0 & TIMER_A_CCTLN_CCIFG))
+    {
+        // If flag isn't set, return
+        return;
+    }
+
+
+    // Clear flag after checking
+    TA0CCTL0 &= ~TIMER_A_CCTLN_CCIFG;
+
+    tickCounter++;
+
+    // turn off pnumatics at x tacks
+    int i;
+    for(i = 0; i < 8; i++)
+    {
+        if(tickCounter == pnumaticsOffTick[i])
+        {
+            P3OUT &= ~(1 << i);
+        }
+    }
+
+}
+
+void embedded_irq(){
+
     // Assure that the right interrupt flag triggered (should only be one)
     if(!(TA0CCTL0 & TIMER_A_CCTLN_CCIFG))
     {
@@ -168,4 +207,15 @@ extern void TA0_0_IRQHandler(void)
         // Indicate that a power conversion has begun
         powerConversionDone = 0;
     }
+}
+
+// Crude scheduler interrupt routine
+extern void TA0_0_IRQHandler(void)
+{
+    #ifdef EMBEDDED_SYSTEM
+    embedded_irq();
+    #endif
+    #ifdef PNUMATICS_SYSTEM
+    pnumatics_irq();
+    #endif
 }

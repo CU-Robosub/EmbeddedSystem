@@ -23,6 +23,7 @@
 #define INT_COUNT_4HZ   15      // Read motor currents at 4 Hz
 #define INT_COUNT_1HZ   60      // Interrupt at a 1 Hz rate
 
+void timerConfigurePnumatics(void);
 
 /**********************************************************************
  * FUNCTION NAME:       timerConfigure

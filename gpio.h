@@ -11,6 +11,8 @@
 #define HIGH_VOLTAGE   12410  // ADC reading of 2.5V  = Battery voltage 15V
 
 
+void gpioConfigurePnumatics(void);
+
 /**********************************************************************
  * FUNCTION NAME:       gpioConfigure
  * FUNCTION PURPOSE:    Configures all GPIO pins for communication,
