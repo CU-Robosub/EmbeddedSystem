@@ -26,7 +26,9 @@ void gpioConfigure(void)
 
     // Pins for eUSCI_B0 I2C line (Depth Sensor)
     P1SEL0  |= BIT6 | BIT7;             // Set pins to primary mode
-    P1SEL0  &= ~(BIT6 | BIT7);          // P1.6 = SDA, P1.7 = SCL
+    P1SEL1  &= ~(BIT6 | BIT7);          // P1.6 = SDA, P1.7 = SCL
+    P1REN   |= BIT6 | BIT7;             // Enable pullup/pulldown resistors
+    P1OUT   |= BIT6 | BIT7;             // Set to pullup resistors
 
     // Pins for ADC connections (Current Sensing)
     P4SEL0  |= BIT0 | BIT1 | BIT2 | BIT4 | BIT5 | BIT6 | BIT7;  // Set pins to tertiary mode

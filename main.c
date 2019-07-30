@@ -36,7 +36,7 @@ void main_embedded(){
     clockConfigure();
     adcConfigure();
     gpioConfigure();
-//    i2cConfigure();       REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
+    i2cConfigure();       // TODO: REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
     timerConfigure();
     uartCompConfigure();
     uartPneumaticsConfigure();
@@ -87,7 +87,7 @@ void main_embedded(){
             // Code
         }
 
-        /* REMOVED I2C FROM CURRENT DESIGN TO FOCUS ON GETTING EVERYTHING ELSE WORKING
+        // TODO: *comment REMOVED I2C FROM CURRENT DESIGN TO FOCUS ON GETTING EVERYTHING ELSE WORKING
 
         // Begin the I2C communication with the depth sensor
         else if(scheduleEvent == DEPTH_SENSOR_READ_START)
@@ -138,7 +138,7 @@ void main_embedded(){
             }
         }
 
-        END OF I2C SECTION, UNCOMMENT TO CONTINUE WORKING ON I2C */
+        //END OF I2C SECTION, UNCOMMENT TO CONTINUE WORKING ON I2C */
 
         // Begin an ADC conversion for the motor currents
         else if(scheduleEvent == MOTOR_CURRENT_READ_START)
@@ -376,21 +376,7 @@ void main_embedded(){
                     break;
                 // If none of these conditions are met, there has been a communications error
                 default:
-                    // Follow error procedure
-                    while(!queueEmpty(transmit))
-                    {
-                        // Empty out the transmit queue
-                        queuePop(transmit);
-                    }
-
-                    // Fill transmit queue with error message
-                    queuePush(transmit, START_STOP_FRAME);
-                    queuePush(transmit, ERROR_FRAME);
-                    queuePush(transmit, COMMUNICATION_ERROR);
-                    queuePush(transmit, START_STOP_FRAME);
-
-                    // Begin transmission and enter infinite while loop
-                    uartBeginCompTransmit();
+                    // Enter infinite while loop if queue is full because that's an error
                     while(1);
             }
         }
@@ -414,21 +400,7 @@ void main_embedded(){
                 // Check that this is followed by an end frame to assure proper communication
                 if(queuePop(pneumaticsReceive) != START_STOP_FRAME)
                 {
-                    // If frame is not a stop frame, follow error procedure
-                    while(!queueEmpty(transmit))
-                    {
-                        // Empty out the transmit queue
-                        queuePop(transmit);
-                    }
-
-                    // Fill transmit queue with error message
-                    queuePush(transmit, START_STOP_FRAME);
-                    queuePush(transmit, ERROR_FRAME);
-                    queuePush(transmit, COMMUNICATION_ERROR);
-                    queuePush(transmit, START_STOP_FRAME);
-
-                    // Begin transmission and enter infinite while loop
-                    uartBeginCompTransmit();
+                    // Enter infinite while loop if queue is full because that's an error
                     while(1);
                 }
                 else

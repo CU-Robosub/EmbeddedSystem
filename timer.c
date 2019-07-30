@@ -122,7 +122,7 @@ void embedded_irq(){
     motorCurrents++;
     powerStatus++;
 
-    /* REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
+    // TODO: *comment REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
 
     // Every interrupt, schedule a pressure sensor reading
     if(!queuePush(eventList, DEPTH_SENSOR_READ_START))
@@ -145,7 +145,7 @@ void embedded_irq(){
         while(1);
     }
 
-    */
+    //*/
 
     // Check if it is time to read motor currents
     if((motorCurrents >= INT_COUNT_4HZ) && motorConversionDone)
@@ -153,21 +153,7 @@ void embedded_irq(){
         // If this is a 4 Hz interrupt, schedule a motor currents reading
         if(!queuePush(eventList, MOTOR_CURRENT_READ_START))
         {
-            // If queue is full, this is an error
-            while(!queueEmpty(transmit))
-            {
-                // Empty out the transmit queue
-                queuePop(transmit);
-            }
-
-            // Fill transmit queue with error message
-            queuePush(transmit, START_STOP_FRAME);
-            queuePush(transmit, ERROR_FRAME);
-            queuePush(transmit, EVENTLIST_QUEUE_FULL_ERROR);
-            queuePush(transmit, START_STOP_FRAME);
-
-            // Begin transmission and enter infinite while loop
-            uartBeginCompTransmit();
+            // Enter infinite while loop if queue is full because that's an error
             while(1);
         }
 
@@ -183,21 +169,7 @@ void embedded_irq(){
         // If this is a 1 Hz interrupt, schedule a power check
         if(!queuePush(eventList, POWER_CURRENT_READ_START))
         {
-            // If queue is full, this is an error
-            while(!queueEmpty(transmit))
-            {
-                // Empty out the transmit queue
-                queuePop(transmit);
-            }
-
-            // Fill transmit queue with error message
-            queuePush(transmit, START_STOP_FRAME);
-            queuePush(transmit, ERROR_FRAME);
-            queuePush(transmit, EVENTLIST_QUEUE_FULL_ERROR);
-            queuePush(transmit, START_STOP_FRAME);
-
-            // Begin transmission and enter infinite while loop
-            uartBeginCompTransmit();
+            // Enter infinite while loop if queue is full because that's an error
             while(1);
         }
 

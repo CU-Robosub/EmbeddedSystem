@@ -24,9 +24,10 @@ void i2cConfigure(void)
     EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_MODE_3;        // Operate in I2C mode
     EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_SSEL__SMCLK;   // Use the SMCLK as the I2C clock source
 
-    // Set clock divider for SMCLK at 3MHz for 400kHz data rate
-    // Fscl = Fsmclk / BRW --> 400,000 = 12,000,000 / 30
-    EUSCI_B0->BRW = 30;
+    // Set clock divider for SMCLK at 12MHz for 200kHz data rate
+    // Fscl = Fsmclk / BRW --> 200,000 = 12,000,000 / 60
+    // Actually 130kHz because the MSP hates us?
+    EUSCI_B0->BRW = 60;
 
     // Load Depth Sensor address into slave address register
     EUSCI_B0->I2CSA = DEPTH_SENSOR_ADDRESS;

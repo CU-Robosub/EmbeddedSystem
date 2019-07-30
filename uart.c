@@ -130,11 +130,6 @@ void uartSendPneumaticsN(uint8_t * data, uint32_t length)
     }
 }
 
-typedef enum {
-    KISS_STATE_NORMAL,
-    KISS_STATE_ESCAPE,
-} KISS_STATE;
-
 
 KISS_STATE uart_kiss_state;
 
@@ -143,10 +138,8 @@ extern volatile uint8_t uart_rx_buffer_pos;
 
 void pnumatics_uart_irq(void)
 {
-
     if(EUSCI_A0->IFG & EUSCI_A_IFG_RXIFG)
     {
-
         uint8_t received = EUSCI_A0->RXBUF;         // Reading here also clears receive interrupt flag
 
         switch(uart_kiss_state)
@@ -160,20 +153,24 @@ void pnumatics_uart_irq(void)
                             EUSCI_A0->IE &= ~(EUSCI_A_IE_RXIE);
                         }
                         break;
+
                     case ESCAPE_FRAME:
                         uart_kiss_state = KISS_STATE_ESCAPE;
                         break;
+
                     default:
                         uart_rx_buffer[uart_rx_buffer_pos++] = received;
                         break;
                 }
                 break;
+
             case KISS_STATE_ESCAPE:
                 switch(received)
                 {
                     case C0_FRAME:
                         uart_rx_buffer[uart_rx_buffer_pos++] = 0xC0;
                         break;
+
                     case DB_FRAME:
                         uart_rx_buffer[uart_rx_buffer_pos++] = 0xDB;
                         break;
@@ -185,10 +182,9 @@ void pnumatics_uart_irq(void)
         if(uart_rx_buffer_pos >= UART_RX_BUFFER_SIZE){
             uart_rx_buffer_pos--;
         }
-
     }
-
 }
+
 
 void embedded_uart_irq(void){
     // INTERRUPTS ARE CLEARED AT THE END TO AVOID CALLING ANOTHER INTERRUPT AFTER CLEARNING A FLAG
@@ -233,21 +229,7 @@ void embedded_uart_irq(void){
             // Queue newly received data, including the end frame
             if(!queuePush(motorReceive, received))
             {
-                // If queue is full, this is an error
-                while(!queueEmpty(transmit))
-                {
-                    // Empty out the transmit queue
-                    queuePop(transmit);
-                }
-
-                // Fill transmit queue with error message
-                queuePush(transmit, START_STOP_FRAME);
-                queuePush(transmit, ERROR_FRAME);
-                queuePush(transmit, MOTOR_RECEIVE_QUEUE_FULL_ERROR);
-                queuePush(transmit, START_STOP_FRAME);
-
-                // Begin transmission and enter infinite while loop
-                uartBeginCompTransmit();
+                // Enter infinite while loop if queue is full because that's an error
                 while(1);
             }
 
@@ -260,21 +242,7 @@ void embedded_uart_irq(void){
                 // Queue up a motor instruction decoding
                 if(!queuePush(eventList, MOTOR_COMMAND_RECEIVED))
                 {
-                    // If queue is full, this is an error
-                    while(!queueEmpty(transmit))
-                    {
-                        // Empty out the transmit queue
-                        queuePop(transmit);
-                    }
-
-                    // Fill transmit queue with error message
-                    queuePush(transmit, START_STOP_FRAME);
-                    queuePush(transmit, ERROR_FRAME);
-                    queuePush(transmit, EVENTLIST_QUEUE_FULL_ERROR);
-                    queuePush(transmit, START_STOP_FRAME);
-
-                    // Begin transmission and enter infinite while loop
-                    uartBeginCompTransmit();
+                    // Enter infinite while loop if queue is full because that's an error
                     while(1);
                 }
             }
@@ -286,21 +254,7 @@ void embedded_uart_irq(void){
             // Queue newly received data, including the end frame
             if(!queuePush(pneumaticsReceive, received))
             {
-                // If queue is full, this is an error
-                while(!queueEmpty(transmit))
-                {
-                    // Empty out the transmit queue
-                    queuePop(transmit);
-                }
-
-                // Fill transmit queue with error message
-                queuePush(transmit, START_STOP_FRAME);
-                queuePush(transmit, ERROR_FRAME);
-                queuePush(transmit, PNEUMATICS_RECEIVE_QUEUE_FULL_ERROR);
-                queuePush(transmit, START_STOP_FRAME);
-
-                // Begin transmission and enter infinite while loop
-                uartBeginCompTransmit();
+                // Enter infinite while loop if queue is full because that's an error
                 while(1);
             }
 
@@ -313,21 +267,7 @@ void embedded_uart_irq(void){
                 // Queue up a pneumatics instruction decoding
                 if(!queuePush(eventList, PNEUMATICS_COMMAND_RECEIVED))
                 {
-                    // If queue is full, this is an error
-                    while(!queueEmpty(transmit))
-                    {
-                        // Empty out the transmit queue
-                        queuePop(transmit);
-                    }
-
-                    // Fill transmit queue with error message
-                    queuePush(transmit, START_STOP_FRAME);
-                    queuePush(transmit, ERROR_FRAME);
-                    queuePush(transmit, EVENTLIST_QUEUE_FULL_ERROR);
-                    queuePush(transmit, START_STOP_FRAME);
-
-                    // Begin transmission and enter infinite while loop
-                    uartBeginCompTransmit();
+                    // Enter infinite while loop if queue is full because that's an error
                     while(1);
                 }
             }
@@ -358,8 +298,8 @@ void embedded_uart_irq(void){
 
     // Clear interrupt flags
     EUSCI_A0->IFG &= ~(EUSCI_A_IFG_RXIFG | EUSCI_A_IFG_TXIFG);
-
 }
+
 
 extern void EUSCIA0_IRQHandler(void)
 {
@@ -369,7 +309,6 @@ extern void EUSCIA0_IRQHandler(void)
     #ifdef PNUMATICS_SYSTEM
     pnumatics_uart_irq();
     #endif
-
 }
 
 

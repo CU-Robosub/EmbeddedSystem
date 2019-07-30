@@ -32,6 +32,11 @@ enum compReceiveStates
     PNEUMATICS_RECEIVING
 };
 
+typedef enum {
+    KISS_STATE_NORMAL,
+    KISS_STATE_ESCAPE,
+} KISS_STATE;
+
 
 // 9600 baud for pneumatics eUSCI_A1 (P2.3 and P2.2)
 // 115200 baud for computer eUSCI_A0 (P1.2 and P1.3)
