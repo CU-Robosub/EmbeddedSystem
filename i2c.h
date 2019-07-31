@@ -13,7 +13,7 @@
 
 
 // Define frames for communication with depth sensor
-#define DEPTH_SENSOR_ADDRESS            0x86    // Only 7 bits
+#define DEPTH_SENSOR_ADDRESS            0x76    // Only 7 bits
 #define DEPTH_SENSOR_RESET_COMMAND      0x1E
 #define DEPTH_SENSOR_DEPTH_CONVERSION   0x40
 #define DEPTH_SENSOR_ADC_READ           0x00
@@ -23,13 +23,12 @@
 enum depthStates
 {
     I2C_READY = 0,
-    ADDRESS_SENT_CONVERSION,
     CONVERSION_STARTED,
-    ADDRESS_SENT_ADC_COMMAND,
     ADC_READ_STARTED,
-    ADDRESS_SENT_ADC_READING,
+    ADC_READING,
     DEPTH_1_RECEIVED,
-    DEPTH_2_RECEIVED
+    DEPTH_2_RECEIVED,
+    I2C_TRANSMITTING
 };
 
 

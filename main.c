@@ -14,7 +14,8 @@ volatile queue_t* transmit = &transmitQueue;
 volatile uint8_t i2cState;
 volatile uint8_t powerConversionDone;
 volatile uint8_t motorConversionDone;
-volatile uint32_t depthRead;
+volatile uint8_t depthConversionFlag;   // Gets set after starting depth conversion, cleared in timer interrupt
+volatile uint8_t depthRead[3];
 
 volatile uint16_t tickCounter;
 volatile uint16_t pnumaticsOffTick[8];
@@ -58,7 +59,9 @@ void main_embedded()
     uint8_t motorCurrents[16];
     uint8_t powerStatus[12];
     i2cState = I2C_READY;
-    depthRead = 0;
+    depthRead[0] = 0;
+    depthRead[1] = 0;
+    depthRead[2] = 0;
     powerConversionDone = 1;    // Indicate that ADC conversions are ready
     motorConversionDone = 1;
     uint32_t i = 0;  // for loop index
@@ -104,39 +107,101 @@ void main_embedded()
             if(i2cState == I2C_READY)
             {
                 // If I2C is ready for another conversion, begin the next conversion
-                i2cState = ADDRESS_SENT_CONVERSION;         // Update the state machine
                 EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
                 EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
-                EUSCI_B0->IFG   &= ~EUSCI_B_IFG_TXIFG0;     // Clear transmit flag before enabling the interupt
-                EUSCI_B0->IE    |= EUSCI_B_IE_TXIE0;        // Enable the TX interrupt for communication
+
+                // Wait until we can send command data
+                while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
+
+                // transmit the conversion command
+                EUSCI_B0->TXBUF = DEPTH_SENSOR_DEPTH_CONVERSION;
+
+                // Wait until we can send a stop
+                while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
+
+                // Send a stop and update i2c state
+                EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
+                i2cState = CONVERSION_STARTED;
             }
             // If I2C isn't ready for another conversion, just skip it because it does 60 per second
         }
 
         // Transmit depth sensor data to the computer
-        // TODO: Check for 0xC0 or 0xDB values and update accordingly before transmitting
         else if(scheduleEvent == DEPTH_SENSOR_READ_FINISH)
         {
-            // If the transmit queue is empty, begin queuing data to transmit
-            if(queueEmpty(transmit))
+            // If there is room for a depth reading transmission
+            if((QUEUE_SIZE - transmit->quantity) >= 9)
             {
-                // Make sure we aren't in the middle of a reading
-                if(i2cState < ADDRESS_SENT_ADC_READING)
+                // Make sure we are done with a reading
+                if(i2cState == I2C_TRANSMITTING)
                 {
                     // Add starting frame and instruction byte to queue
                     queuePush(transmit, START_STOP_FRAME);
                     queuePush(transmit, DEPTH_SENSOR_FRAME);
 
-                    // Fill transmit queue with depth sensor data, MSB first
-                    queuePush(transmit, (uint8_t)((depthRead >> 16) & 0xFF));
-                    queuePush(transmit, (uint8_t)((depthRead >> 8) & 0xFF));
-                    queuePush(transmit, (uint8_t)(depthRead & 0xFF));
+                    // Check if any bytes are start stop or escape frames
+                    if(depthRead[0] == START_STOP_FRAME)
+                    {
+                        // Queue escape and c0 frames
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, C0_FRAME);
+                    }
+                    else if(depthRead[0] == ESCAPE_FRAME)
+                    {
+                        // Queue escape and db frames
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, DB_FRAME);
+                    }
+                    else
+                    {
+                        // Queue whatever depthRead[0] is
+                        queuePush(transmit, depthRead[0]);
+                    }
+
+                    if(depthRead[1] == START_STOP_FRAME)
+                    {
+                        // Queue escape and c0 frames
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, C0_FRAME);
+                    }
+                    else if(depthRead[1] == ESCAPE_FRAME)
+                    {
+                        // Queue escape and db frames
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, DB_FRAME);
+                    }
+                    else
+                    {
+                        // Queue whatever depthRead[1] is
+                        queuePush(transmit, depthRead[1]);
+                    }
+
+                    if(depthRead[2] == START_STOP_FRAME)
+                    {
+                        // Queue escape and c0 frames
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, C0_FRAME);
+                    }
+                    else if(depthRead[2] == ESCAPE_FRAME)
+                    {
+                        // Queue escape and db frames
+                        queuePush(transmit, ESCAPE_FRAME);
+                        queuePush(transmit, DB_FRAME);
+                    }
+                    else
+                    {
+                        // Queue whatever depthRead[2] is
+                        queuePush(transmit, depthRead[2]);
+                    }
 
                     // Add end frame to queue
                     queuePush(transmit, START_STOP_FRAME);
 
                     // Begin UART transmission
                     uartBeginCompTransmit();
+
+                    // Update i2c state
+                    i2cState = I2C_READY;
                 }
             }
             // If the transmit queue isn't empty, try again later
@@ -178,7 +243,7 @@ void main_embedded()
                 motorCurrents[(2*i)+1] = (uint8_t) (ADC14->MEM[i] >> 8) & 0xFF;  // Store upper half of conversions
             }
 
-            // If the transmit queue is empty, begin queuing data to transmit
+            // If there is room for a motor current transmission
             if((QUEUE_SIZE - transmit->quantity) >= 34)
             {
                 // Add starting frame and instruction byte to queue
@@ -268,7 +333,7 @@ void main_embedded()
             // Based on the newest battery reading, update the LED color
             setLEDColor((uint16_t)ADC14->MEM[13] & 0xFFFF);
 
-            // If the transmit queue is empty, begin queuing data to transmit
+            // If there is room for a power current transmission
             if((QUEUE_SIZE - transmit->quantity) >= 27)
             {
                 // Add starting frame and instruction byte to queue

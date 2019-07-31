@@ -6,6 +6,8 @@ extern volatile queue_t* eventList;
 extern volatile queue_t* transmit;
 extern volatile uint8_t powerConversionDone;
 extern volatile uint8_t motorConversionDone;
+extern volatile uint8_t depthConversionFlag;
+extern volatile uint8_t i2cState;
 extern volatile uint16_t tickCounter;
 extern volatile uint16_t pnumaticsOffTick[8];
 
@@ -26,14 +28,14 @@ void timerConfigure(void)
 {
     /*** Configure TA0 to control interrupts ***
      * Clock Frequency = 300 kHz
-     * Interrupt Frequency = 60 Hz
+     * Interrupt Frequency = 600 Hz
      ******************************************/
     TA0CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__8 |   // Clock source: SMCLK, Clock divider: 8
                 TIMER_A_CTL_MC__UP;                             // Counting: Up Mode
     TA0CCTL0 |= TIMER_A_CCTLN_CCIE;                             // Enable CCTL0 interrupt
     TA0CCTL0 &= ~TIMER_A_CCTLN_CCIFG;                           // Clear CCTL0 interrupt flag
     TA0EX0   |= TIMER_A_EX0_IDEX__5;                            // Input divider expansion: 5
-    TA0CCR0   = 5000;                                           // 5000 clock cycles per interrupt
+    TA0CCR0   = 500;                                            // 5000 clock cycles per interrupt
     NVIC_EnableIRQ(TA0_0_IRQn);                                 // Enable interrupts on the NVIC
 
     /********* Configure TA1 and TA2 to control motor PWM signals **********
@@ -112,7 +114,8 @@ void embedded_irq(){
     // Clear flag after checking
     TA0CCTL0 &= ~TIMER_A_CCTLN_CCIFG;
 
-    // Declare static counter variables for interrupts which occur slower than 60 Hz
+    // Declare static counter variables for interrupts which occur slower than 600 Hz
+    static uint8_t depthReading = 0;
     static uint8_t motorCurrents = 0;
     static uint8_t powerStatus = 0;
 
@@ -120,30 +123,43 @@ void embedded_irq(){
     motorCurrents++;
     powerStatus++;
 
-    // TODO: *comment REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
 
-    // Every interrupt, schedule a pressure sensor reading
-    if(!queuePush(eventList, DEPTH_SENSOR_READ_START))
+    // If the depth conversion flag is set, start depth sensor read command
+    if(depthConversionFlag)
     {
-        // If queue is full, this is an error
-        while(!queueEmpty(transmit))
-        {
-            // Empty out the transmit queue
-            queuePop(transmit);
-        }
+        // Transmit a start condition
+        EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
+        EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
 
-        // Fill transmit queue with error message
-        queuePush(transmit, START_STOP_FRAME);
-        queuePush(transmit, ERROR_FRAME);
-        queuePush(transmit, EVENTLIST_QUEUE_FULL_ERROR);
-        queuePush(transmit, START_STOP_FRAME);
+        // Wait until we can send command data
+        while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
 
-        // Begin transmission and enter infinite while loop
-        uartBeginCompTransmit();
-        while(1);
+        // transmit the read command
+        EUSCI_B0->TXBUF = DEPTH_SENSOR_ADC_READ;
+
+        // Wait until we can send a stop
+        while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
+
+        // Send a stop and update i2c state
+        EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
+        i2cState = ADC_READ_STARTED;
     }
 
-    //*/
+
+    // Check if it is time for a depth sensor reading
+    if(depthReading >= INT_COUNT_60HZ)
+    {
+        // If this is a 60 Hz interrupt, schedule a depth sensor reading
+        if(!queuePush(eventList, DEPTH_SENSOR_READ_START))
+        {
+            // Enter infinite while loop if queue is full because that's an error
+            while(1);
+        }
+
+        // Reset the depth reading counter
+        depthReading = 0;
+    }
+
 
     // Check if it is time to read motor currents
     if((motorCurrents >= INT_COUNT_4HZ) && motorConversionDone)
