@@ -11,8 +11,6 @@ volatile queue_t* eventList = &events;
 volatile queue_t* pneumaticsReceive = &pneumaticsReceiveQueue;
 volatile queue_t* motorReceive = &motorReceiveQueue;
 volatile queue_t* transmit = &transmitQueue;
-volatile uint8_t pneumaticsState;
-volatile uint8_t currentActuator;
 volatile uint8_t i2cState;
 volatile uint8_t powerConversionDone;
 volatile uint8_t motorConversionDone;
@@ -25,18 +23,32 @@ volatile uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
 volatile uint8_t uart_rx_buffer_pos;
 
 
-/* CURRENT DESIGN DOES NOT HAVE I2C ENABLED, TO REENABLE
- * UNCOMMENT THE I2C CONFIGURATION FUNCTION IN MAIN.C,
- * UNCOMMENT THE DEPTH SENSOR ROUTINES IN THE SCHEDULER IN MAIN.C,
- * UNCOMMENT THE DEPTH SENSOR READ PORTION OF THE INTERRUPT IN TIMER.C
- */
+uint8_t crc8(uint8_t crc, uint8_t poly, uint8_t *data, size_t len)
+{
+    uint8_t k;
 
-void main_embedded(){
+    while (len--)
+    {
+        crc ^= *data++;
+
+        for (k = 0; k < 8; k++)
+        {
+            crc = crc & 0x80 ? (crc << 1) ^ poly : crc << 1;
+        }
+    }
+
+    crc &= 0xff;
+    return crc;
+}
+
+
+void main_embedded()
+{
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;     // Stop watchdog timer
     clockConfigure();
     adcConfigure();
     gpioConfigure();
-    i2cConfigure();       // TODO: REMOVED I2C FROM CURRENT DESIGN, UNCOMMENT TO ADD IT BACK
+    i2cConfigure();
     timerConfigure();
     uartCompConfigure();
     uartPneumaticsConfigure();
@@ -45,9 +57,7 @@ void main_embedded(){
     uint8_t scheduleEvent = NO_EVENT;
     uint8_t motorCurrents[16];
     uint8_t powerStatus[12];
-    pneumaticsState = PNEUMATICS_READY;
     i2cState = I2C_READY;
-    currentActuator = 0;
     depthRead = 0;
     powerConversionDone = 1;    // Indicate that ADC conversions are ready
     motorConversionDone = 1;
@@ -86,8 +96,6 @@ void main_embedded(){
         {
             // Code
         }
-
-        // TODO: *comment REMOVED I2C FROM CURRENT DESIGN TO FOCUS ON GETTING EVERYTHING ELSE WORKING
 
         // Begin the I2C communication with the depth sensor
         else if(scheduleEvent == DEPTH_SENSOR_READ_START)
@@ -138,8 +146,6 @@ void main_embedded(){
             }
         }
 
-        //END OF I2C SECTION, UNCOMMENT TO CONTINUE WORKING ON I2C */
-
         // Begin an ADC conversion for the motor currents
         else if(scheduleEvent == MOTOR_CURRENT_READ_START)
         {
@@ -173,7 +179,7 @@ void main_embedded(){
             }
 
             // If the transmit queue is empty, begin queuing data to transmit
-            if(queueEmpty(transmit))
+            if((QUEUE_SIZE - transmit->quantity) >= 34)
             {
                 // Add starting frame and instruction byte to queue
                 queuePush(transmit, START_STOP_FRAME);
@@ -208,8 +214,12 @@ void main_embedded(){
                 // Add end frame to queue
                 queuePush(transmit, START_STOP_FRAME);
 
-                // Begin UART transmission
-                uartBeginCompTransmit();
+                // If the interrupt is currently disabled
+                if(!(EUSCI_A0->IE & EUSCI_A_IE_TXIE))
+                {
+                    // Begin UART transmission
+                    uartBeginCompTransmit();
+                }
 
                 // Indicate that a motor conversion is done
                 motorConversionDone = 1;
@@ -259,7 +269,7 @@ void main_embedded(){
             setLEDColor((uint16_t)ADC14->MEM[13] & 0xFFFF);
 
             // If the transmit queue is empty, begin queuing data to transmit
-            if(queueEmpty(transmit))
+            if((QUEUE_SIZE - transmit->quantity) >= 27)
             {
                 // Add starting frame and instruction byte to queue
                 queuePush(transmit, START_STOP_FRAME);
@@ -294,8 +304,12 @@ void main_embedded(){
                 // Add end frame to queue
                 queuePush(transmit, START_STOP_FRAME);
 
-                // Begin UART transmission
-                uartBeginCompTransmit();
+                // If the interrupt is currently disabled
+                if(!(EUSCI_A0->IE & EUSCI_A_IE_TXIE))
+                {
+                    // Begin UART transmission
+                    uartBeginCompTransmit();
+                }
 
                 // Indicate that a power conversion is done
                 powerConversionDone = 1;
@@ -311,35 +325,60 @@ void main_embedded(){
         // Change the PWM frequencies of motors based on received input
         else if(scheduleEvent == MOTOR_COMMAND_RECEIVED)
         {
-            // Read motor number and pulse length
+            // Read motor number and least significant byte of the pulse length
             uint8_t motorNumber = queuePop(motorReceive);
-            uint8_t pulseLength = queuePop(motorReceive);
+            uint8_t pulseLengthLSB = queuePop(motorReceive);
 
             // Check if the pulse length was an escape frame
-            if(pulseLength == ESCAPE_FRAME)
+            if(pulseLengthLSB == ESCAPE_FRAME)
             {
                 // Pull the next value from the queue
                 uint8_t temp = queuePop(motorReceive);
 
-                // If it is a C0 frame, update the value of pulseLength and flush the end frame from the queue
+                // If it is a C0 frame, update the value of pulseLength
                 if(temp == C0_FRAME)
                 {
-                    pulseLength = 0xC0;
-                    queuePop(motorReceive);
+                    pulseLengthLSB = 0xC0;
                 }
 
-                // If it is a DB frame, update the value of pulseLength and flush the end frame from the queue
+                // If it is a DB frame, update the value of pulseLength
                 if(temp == DB_FRAME)
                 {
-                    pulseLength = 0xDB;
-                    queuePop(motorReceive);
+                    pulseLengthLSB = 0xDB;
                 }
             }
 
-            // Multiply pulse length by 2 because the period is 0.5usec
-            pulseLength *= 2;
+            // Read the most significant byte of the pulse length
+            uint8_t pulseLengthMSB = queuePop(motorReceive);
 
-            // If frame is a stop frame, update motor as instructed
+            // Check if the pulse length was an escape frame
+            if(pulseLengthMSB == ESCAPE_FRAME)
+            {
+                // Pull the next value from the queue
+                uint8_t temp = queuePop(motorReceive);
+
+                // If it is a C0 frame, update the value of pulseLength
+                if(temp == C0_FRAME)
+                {
+                    pulseLengthMSB = 0xC0;
+                }
+
+                // If it is a DB frame, update the value of pulseLength
+                if(temp == DB_FRAME)
+                {
+                    pulseLengthMSB = 0xDB;
+                }
+            }
+
+            // Check that this is followed by an end frame to assure proper communication
+            if(queuePop(motorReceive) != START_STOP_FRAME)
+            {
+                // Enter infinite while loop if queue is full because that's an error
+                while(1);
+            }
+
+            // Update motor as instructed
+            uint16_t pulseLength = ((pulseLengthMSB << 8) | pulseLengthLSB);
             switch (motorNumber)
             {
                 // Motor 1 source is TA1.1
@@ -384,70 +423,33 @@ void main_embedded(){
         // Begin a transmission to the pneumatics board to fire
         else if(scheduleEvent == PNEUMATICS_COMMAND_RECEIVED)
         {
-            // Check if there is currently an actuator being fired
-            if(pneumaticsState == COMMAND_SENT)
-            {
-                // Queue up another decode for later when it is ready
-                queuePush(eventList, PNEUMATICS_COMMAND_RECEIVED);
-            }
+            // Read which actuator needs to be fired
+            uint8_t actuator = queuePop(pneumaticsReceive);
+            uint8_t duration = queuePop(pneumaticsReceive);
 
-            // If there is no actuator currently being fired
+            // Check that this is followed by an end frame to assure proper communication
+            if(queuePop(pneumaticsReceive) != START_STOP_FRAME)
+            {
+                // Enter infinite while loop if queue is full because that's an error
+                while(1);
+            }
             else
             {
-                // Read which actuator needs to be fired
-                currentActuator = queuePop(pneumaticsReceive);
+                // If a stop frame was read, begin the pneumatics firing process
+                uint8_t fire[5];
+                fire[0] = START_STOP_FRAME;
+                fire[1] = actuator;
+                fire[2] = duration;
+                fire[3] = crc8(CRC8_INIT, CRC8_POLY, &fire[1], 2);
+                fire[4] = START_STOP_FRAME;
 
-                // Check that this is followed by an end frame to assure proper communication
-                if(queuePop(pneumaticsReceive) != START_STOP_FRAME)
-                {
-                    // Enter infinite while loop if queue is full because that's an error
-                    while(1);
-                }
-                else
-                {
-                    // If a stop frame was read, begin the pneumatics firing process
-                    uint8_t beginFire[3];
-                    beginFire[0] = START_STOP_FRAME;
-                    beginFire[1] = currentActuator;
-                    beginFire[2] = START_STOP_FRAME;
-
-                    // Update state to indicate that firing is beginning
-                    pneumaticsState = COMMAND_SENT;
-
-                    // Transmit the fire command
-                    uartSendPneumaticsN(beginFire, 3);
-                }
+                // Transmit the fire command
+                uartSendPneumaticsN(fire, 5);
             }
         }
     }
 }
 
-#include <stddef.h>
-
-uint8_t crc8(uint8_t crc, uint8_t poly, uint8_t const *data, size_t len)
-{
-
-    uint8_t k;
-
-    while (len--) {
-
-        crc ^= *data++;
-
-        for (k = 0; k < 8; k++)
-        {
-            crc = crc & 0x80 ? (crc << 1) ^ poly : crc << 1;
-        }
-
-    }
-
-    crc &= 0xff;
-
-    return crc;
-
-}
-
-#define CRC8_INIT 0x00
-#define CRC8_POLY 0x07
 
 void main_pnumatics(){
 
@@ -476,7 +478,7 @@ void main_pnumatics(){
             // ACTUATOR TIME_ON CRC-8
 
             // Validate packet CRC
-            uint8_t crc = crc8(CRC8_INIT, CRC8_POLY, uart_rx_buffer, uart_rx_buffer_pos - 1);
+            uint8_t crc = crc8(CRC8_INIT, CRC8_POLY, (uint8_t*)uart_rx_buffer, uart_rx_buffer_pos - 1);
             if(crc == uart_rx_buffer[uart_rx_buffer_pos - 1]){
 
                 // packet should be 3 bytes long
@@ -528,11 +530,8 @@ void main_pnumatics(){
 
             uart_rx_buffer_pos = 0;
             EUSCI_A0->IE |= EUSCI_A_IE_RXIE;
-
         }
-
     }
-
 }
 
 void main(void)

@@ -9,14 +9,14 @@
 #include "main.h"
 
 /*** Motor PWM Signals ****
- *    TA1.1 = Motor 1
- *    TA1.2 = Motor 2
- *    TA1.3 = Motor 3
- *    TA1.4 = Motor 4
- *    TA2.1 = Motor 5
- *    TA2.2 = Motor 6
- *    TA2.3 = Motor 7
- *    TA2.4 = Motor 8
+ *    TA1.1 = Motor 1 = P7.7
+ *    TA1.2 = Motor 2 = P7.6
+ *    TA1.3 = Motor 3 = P7.5
+ *    TA1.4 = Motor 4 = P7.4
+ *    TA2.1 = Motor 5 = P5.6
+ *    TA2.2 = Motor 6 = P5.7
+ *    TA2.3 = Motor 7 = P6.6
+ *    TA2.4 = Motor 8 = P6.7
  *************************/
 
 // Defines for interrupts counts (Interrupt frequency = 60 Hz)

@@ -11,11 +11,14 @@
 #include "clock.h"
 #include "stdint.h"
 #include "queue.h"
+#include <stddef.h>
 
 
 #define DCOCLK_FREQ     48000000    // DCO clock frequency
 #define HSMCLK_FREQ     48000000    // HSM clock frequency
 #define SMCLK_FREQ      12000000    // SM clock frequency
+#define CRC8_INIT       0x00        // Init variable for crc8 function
+#define CRC8_POLY       0x07        // Polynomial variable for crc8 function
 
 #define UART_RX_BUFFER_SIZE 20
 
@@ -32,13 +35,6 @@ enum scheduleEvents
     POWER_CURRENT_READ_FINISH,
     MOTOR_COMMAND_RECEIVED,
     PNEUMATICS_COMMAND_RECEIVED,
-};
-
-
-enum firingStates
-{
-    PNEUMATICS_READY = 0,
-    COMMAND_SENT,
 };
 
 

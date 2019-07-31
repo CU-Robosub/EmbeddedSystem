@@ -10,9 +10,9 @@
  * once is 16 data bytes. If all 16 data bytes are a start/stop frame or an escape frame,
  * this size will double to 32 bytes. We also need two more bytes for the start and stop
  * frames, which means the largest transmission we will every make is 34 bytes. It is
- * rounded to 35 because 35 bytes because it is a better number than 34.
+ * rounded to 35 bytes because it is a better number than 34.
  */
-#define QUEUE_SIZE  35
+#define QUEUE_SIZE  70
 
 
 typedef struct

@@ -6,8 +6,7 @@ extern volatile queue_t* eventList;
 extern volatile queue_t* pneumaticsReceive;
 extern volatile queue_t* motorReceive;
 extern volatile queue_t* transmit;
-extern volatile uint8_t pneumaticsState;
-extern volatile uint8_t currentActuator;
+
 
 void uartConfigurePnumatics(void)
 {
@@ -76,7 +75,8 @@ void uartCompConfigure(void)
 void uartBeginCompTransmit(void)
 {
     // Load first byte of transmit queue into the transmit buffer
-    EUSCI_A0->TXBUF = queuePop(transmit);
+    uint8_t next = queuePop(transmit);
+    EUSCI_A0->TXBUF = next;
 
     // Enable transmit interrupt
     EUSCI_A0->IE |= EUSCI_A_IE_TXIE;
@@ -292,7 +292,8 @@ void embedded_uart_irq(void){
         else
         {
             // If the transmission is not complete, load the next byte into the transmit buffer
-            EUSCI_A0->TXBUF = queuePop(transmit);
+            uint8_t next = queuePop(transmit);
+            EUSCI_A0->TXBUF = next;
         }
     }
 
@@ -309,47 +310,4 @@ extern void EUSCIA0_IRQHandler(void)
     #ifdef PNUMATICS_SYSTEM
     pnumatics_uart_irq();
     #endif
-}
-
-
-extern void EUSCIA1_IRQHandler(void)
-{
-    // Check if a receiving interrupt flag is set
-    if (EUSCI_A1->IFG & EUSCI_A_IFG_RXIFG);
-    {
-        // Check if we are expecting to hear from the pneumatics board
-        if(pneumaticsState == COMMAND_SENT)
-        {
-            // If we are expecting communication, check if the confirmation matches what is expected
-            if(EUSCI_A1->RXBUF == currentActuator)
-            {
-                // Prepare a confirmation correct transmission to fire
-                uint8_t fire[3];
-                fire[0] = START_STOP_FRAME;
-                fire[1] = CONFIRMATION_CORRECT;
-                fire[2] = START_STOP_FRAME;
-
-                // Update state to indicate that firing has occurred
-                pneumaticsState = PNEUMATICS_READY;
-
-                // Transmit the fire command
-                uartSendPneumaticsN(fire, 3);
-            }
-            else
-            {
-                // If it is not right, send an error and resend the actuator number
-                uint8_t fire[4];
-                fire[0] = START_STOP_FRAME;
-                fire[1] = CONFIRMATION_INCORRECT;
-                fire[2] = currentActuator;
-                fire[3] = START_STOP_FRAME;
-
-                // Transmit the fire command
-                uartSendPneumaticsN(fire, 4);
-            }
-        }
-    }
-
-    // Clear the receive interrupt flag (only one which is enabled for pneumatics)
-    EUSCI_A1->IFG &= ~EUSCI_A_IFG_RXIFG;
 }

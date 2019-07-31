@@ -37,21 +37,19 @@ void timerConfigure(void)
     NVIC_EnableIRQ(TA0_0_IRQn);                                 // Enable interrupts on the NVIC
 
     /********* Configure TA1 and TA2 to control motor PWM signals **********
-     * Timer Clock Frequency = 2 MHz, the SMCLK (12 MHz) divided by 6
-     * Timer Clock Period = 0.5 microseconds, gives good speed resolution
-     * PWM Period = 40000 Clock Cycles = 20000 microseconds
+     * Timer Clock Frequency = 1 MHz, the SMCLK (12 MHz) divided by 12
+     * Timer Clock Period = 1 microseconds, gives good speed resolution
+     * PWM Period = 20000 Clock Cycles = 20000 microseconds
      *  NOTE: The desired PWM frequency is 50Hz, which is how this period
      *        was selected.
      * PWM On-Time Range = 1100 to 1900 microseconds
-     *   - 1100 microseconds (2200 clocks) = Maximum Reverse Speed to Motor
-     *   - 1500 microseconds (3000 clocks) = Motor Stopped
-     *   - 1900 microseconds (3800 clocks) = Maximum Forward Speed to Motor
-     * This setup gives a resolution of 800 different speeds in either
-     *  motor direction, giving very high accuracy
+     *   - 1100 microseconds (1100 clocks) = Maximum Reverse Speed to Motor
+     *   - 1500 microseconds (1500 clocks) = Motor Stopped
+     *   - 1900 microseconds (1900 clocks) = Maximum Forward Speed to Motor
      **********************************************************************/
-    TA1CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__2 |   // Clock source: SMCLK, Clock divider: 2
+    TA1CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__4 |   // Clock source: SMCLK, Clock divider: 4
                 TIMER_A_CTL_MC__UP;                             // Counting: Up Mode (Timer A1)
-    TA2CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__2 |   // Clock source: SMCLK, Clock divider: 2
+    TA2CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__4 |   // Clock source: SMCLK, Clock divider: 4
                 TIMER_A_CTL_MC__UP;                             // Counting: Up Mode (Timer A2)
     TA1EX0   |= TIMER_A_EX0_IDEX__3;                            // Input divider expansion: 3 (Timer A1)
     TA2EX0   |= TIMER_A_EX0_IDEX__3;                            // Input divider expansion: 3 (Timer A2)
@@ -63,16 +61,16 @@ void timerConfigure(void)
     TA2CCTL2 |= TIMER_A_CCTLN_OUTMOD_6;                         // * 611-614 of the technical reference manual
     TA2CCTL3 |= TIMER_A_CCTLN_OUTMOD_6;                         // Timer A2 output channels
     TA2CCTL4 |= TIMER_A_CCTLN_OUTMOD_6;
-    TA1CCR0   = 40000;                                          // 20000 microsecond PWM period
-    TA2CCR0   = 40000;
-    TA1CCR1   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA1CCR2   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA1CCR3   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA1CCR4   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA2CCR1   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA2CCR2   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA2CCR3   = 3000;                                           // 1500 microsecond on-time, motor stopped
-    TA2CCR4   = 3000;                                           // 1500 microsecond on-time, motor stopped
+    TA1CCR0   = 20000;                                          // 20000 microsecond PWM period
+    TA2CCR0   = 20000;
+    TA1CCR1   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA1CCR2   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA1CCR3   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA1CCR4   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA2CCR1   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA2CCR2   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA2CCR3   = 1500;                                           // 1500 microsecond on-time, motor stopped
+    TA2CCR4   = 1500;                                           // 1500 microsecond on-time, motor stopped
 }
 
 void pnumatics_irq(){
