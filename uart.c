@@ -99,15 +99,15 @@ void uartPneumaticsConfigure(void)
     EUSCI_A1->CTLW0 &= ~EUSCI_A_CTLW0_SEVENBIT;     // 8-bit data length
     EUSCI_A1->CTLW0 &= ~EUSCI_A_CTLW0_SPB;          // 1 stop bit
 
-    // Makes the Baud Rate 9600
+    // Makes the Baud Rate 115200
     // Information on setting Baud Rate can be found on page 735 of the Technical Reference Manual
     EUSCI_A1->MCTLW |= EUSCI_A_MCTLW_OS16;          // Enables over sampling mode
-    EUSCI_A1->BRW   |= 0x48;                        // Prescaler of Baud Rate (UCBRx)
-    EUSCI_A1->MCTLW |= 0x0820;                      // Determine the Second Mod stage (UCBRSx) and the Mod pattern (UCBRFx)
+    EUSCI_A1->BRW   |= 0x06;                        // Prescaler of Baud (UCBRx)
+    EUSCI_A1->MCTLW |= 0xAA80;                      // Determine the Second Mod stage (UCBRSx) and the Mod pattern (UCBRFx)
 
     // Enable the RX interrupt for eUSCI_A0
-    EUSCI_A1->IE |= EUSCI_A_IE_RXIE;                // Enables the Rx Interrupt
-    NVIC_EnableIRQ(EUSCIA1_IRQn);                   // Enables interrupts on the NVIC (watching flags)
+    //EUSCI_A1->IE |= EUSCI_A_IE_RXIE;                // Enables the Rx Interrupt
+    //NVIC_EnableIRQ(EUSCIA1_IRQn);                   // Enables interrupts on the NVIC (watching flags)
 
     // Disable eUSCI reset to enable the line
     EUSCI_A1->CTLW0 &= ~EUSCI_A_CTLW0_SWRST;        // Disables reset

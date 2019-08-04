@@ -6,7 +6,8 @@ extern volatile queue_t* eventList;
 extern volatile queue_t* transmit;
 extern volatile uint8_t powerConversionDone;
 extern volatile uint8_t motorConversionDone;
-extern volatile uint8_t depthConversionFlag;
+extern volatile uint8_t depthAdcConversionFlag;
+extern volatile uint8_t depthSensorConnected;
 extern volatile uint8_t i2cState;
 extern volatile uint16_t tickCounter;
 extern volatile uint16_t pnumaticsOffTick[8];
@@ -28,14 +29,14 @@ void timerConfigure(void)
 {
     /*** Configure TA0 to control interrupts ***
      * Clock Frequency = 300 kHz
-     * Interrupt Frequency = 600 Hz
+     * Interrupt Frequency = 120 Hz
      ******************************************/
     TA0CTL   |= TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_ID__8 |   // Clock source: SMCLK, Clock divider: 8
                 TIMER_A_CTL_MC__UP;                             // Counting: Up Mode
     TA0CCTL0 |= TIMER_A_CCTLN_CCIE;                             // Enable CCTL0 interrupt
     TA0CCTL0 &= ~TIMER_A_CCTLN_CCIFG;                           // Clear CCTL0 interrupt flag
     TA0EX0   |= TIMER_A_EX0_IDEX__5;                            // Input divider expansion: 5
-    TA0CCR0   = 500;                                            // 5000 clock cycles per interrupt
+    TA0CCR0   = 2500;                                            // 2500 clock cycles per interrupt
     NVIC_EnableIRQ(TA0_0_IRQn);                                 // Enable interrupts on the NVIC
 
     /********* Configure TA1 and TA2 to control motor PWM signals **********
@@ -103,7 +104,6 @@ void pnumatics_irq(){
 }
 
 void embedded_irq(){
-
     // Assure that the right interrupt flag triggered (should only be one)
     if(!(TA0CCTL0 & TIMER_A_CCTLN_CCIFG))
     {
@@ -115,39 +115,37 @@ void embedded_irq(){
     TA0CCTL0 &= ~TIMER_A_CCTLN_CCIFG;
 
     // Declare static counter variables for interrupts which occur slower than 600 Hz
-    static uint8_t depthReading = 0;
-    static uint8_t motorCurrents = 0;
-    static uint8_t powerStatus = 0;
-
-    // Increment counters
-    motorCurrents++;
-    powerStatus++;
-
+    static uint16_t depthReading = 0;
+    static uint16_t motorCurrents = 0;
+    static uint16_t powerStatus = 0;
 
     // If the depth conversion flag is set, start depth sensor read command
-    if(depthConversionFlag)
+    if(depthAdcConversionFlag)
     {
-        // Transmit a start condition
-        EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
-        EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
+        // Update i2c state
+        if(i2cState == DEPTH_CONVERSION_STARTED)
+        {
+            i2cState = DEPTH_READ_STARTED;
+        }
+        else if(i2cState == TEMP_CONVERSION_STARTED)
+        {
+            i2cState = TEMP_READ_STARTED;
+        }
 
-        // Wait until we can send command data
-        while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
+        // Transmit a depth sensor read command
+        if(!i2cTransmit(DEPTH_SENSOR_ADDRESS, DEPTH_SENSOR_ADC_READ))
+        {
+            i2cState = I2C_READY;
+            depthSensorConnected = 0;
+        }
 
-        // transmit the read command
-        EUSCI_B0->TXBUF = DEPTH_SENSOR_ADC_READ;
-
-        // Wait until we can send a stop
-        while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
-
-        // Send a stop and update i2c state
-        EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
-        i2cState = ADC_READ_STARTED;
+        depthAdcConversionFlag = 0;
     }
 
-
-    // Check if it is time for a depth sensor reading
-    if(depthReading >= INT_COUNT_60HZ)
+#ifdef I2C_ENABLED
+    // Increment counter and check if it is time for a depth sensor reading
+    depthReading++;
+    if(depthReading >= INT_COUNT_15HZ)
     {
         // If this is a 60 Hz interrupt, schedule a depth sensor reading
         if(!queuePush(eventList, DEPTH_SENSOR_READ_START))
@@ -159,9 +157,10 @@ void embedded_irq(){
         // Reset the depth reading counter
         depthReading = 0;
     }
+#endif
 
-
-    // Check if it is time to read motor currents
+    // Increment counter and check if it is time to read motor currents
+    motorCurrents++;
     if((motorCurrents >= INT_COUNT_4HZ) && motorConversionDone)
     {
         // If this is a 4 Hz interrupt, schedule a motor currents reading
@@ -178,6 +177,8 @@ void embedded_irq(){
         motorConversionDone = 0;
     }
 
+    // Increment counter and check if it is time to read power currents
+    powerStatus++;
     if((powerStatus >= INT_COUNT_1HZ) && powerConversionDone)
     {
         // If this is a 1 Hz interrupt, schedule a power check

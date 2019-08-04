@@ -10,12 +10,17 @@ uint8_t queuePush(volatile queue_t* queue, uint8_t newElement)
         return 0;
     }
 
+    // Basically atomic
+    __disable_irq();
+
     // If the queue isn't full, add the new element to the queue
     queue->elements[queue->head] = newElement;
     queue->head = queue->head + 1;
     queue->head = queue->head % QUEUE_SIZE;
     queue->quantity = queue->quantity + 1;
 
+    // Back to good
+    __enable_irq();
     // Return 1 for success
     return 1;
 }
@@ -23,6 +28,7 @@ uint8_t queuePush(volatile queue_t* queue, uint8_t newElement)
 
 uint8_t queuePop(volatile queue_t* queue)
 {
+    uint8_t ret;
     // Check to make sure the queue isn't empty before removing something
     if(queue->quantity <= 0)
     {
@@ -30,11 +36,18 @@ uint8_t queuePop(volatile queue_t* queue)
         return 0;
     }
 
+    // Basically atomic
+    __disable_irq();
+
     // If the queue isn't empty, remove the front element from the queue
-    uint8_t ret = queue->elements[queue->tail];
+    ret = queue->elements[queue->tail];
     queue->tail = queue->tail + 1;
     queue->tail = queue->tail % QUEUE_SIZE;
     queue->quantity = queue->quantity - 1;
+
+    // Back to good
+    __enable_irq();
+
     return ret;
 }
 

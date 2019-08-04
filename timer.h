@@ -19,10 +19,10 @@
  *    TA2.4 = Motor 8 = P6.7
  *************************/
 
-// Defines for interrupts counts (Interrupt frequency = 600 Hz)
-#define INT_COUNT_60HZ  10      // Read depth at 60 Hz
-#define INT_COUNT_4HZ   150     // Read motor currents at 4 Hz
-#define INT_COUNT_1HZ   600     // Interrupt at a 1 Hz rate
+// Defines for interrupts counts (Interrupt frequency = 120 Hz)
+#define INT_COUNT_15HZ  8       // Read depth at 15 Hz
+#define INT_COUNT_4HZ   30      // Read motor currents at 4 Hz
+#define INT_COUNT_1HZ   120     // Interrupt at a 1 Hz rate
 
 void timerConfigurePnumatics(void);
 

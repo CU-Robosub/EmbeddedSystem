@@ -24,6 +24,8 @@
 
 #define EMBEDDED_SYSTEM
 
+#define I2C_ENABLED
+
 enum scheduleEvents
 {
     NO_EVENT = 0,

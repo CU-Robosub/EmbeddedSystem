@@ -14,9 +14,9 @@ volatile queue_t* transmit = &transmitQueue;
 volatile uint8_t i2cState;
 volatile uint8_t powerConversionDone;
 volatile uint8_t motorConversionDone;
-volatile uint8_t depthConversionFlag;   // Gets set after starting depth conversion, cleared in timer interrupt
-volatile uint8_t depthRead[3];
-
+volatile uint8_t depthAdcConversionFlag;   // Gets set after starting depth conversion, cleared in timer interrupt
+volatile uint8_t depthRead[6];
+volatile uint8_t depthSensorConnected;
 volatile uint16_t tickCounter;
 volatile uint16_t pnumaticsOffTick[8];
 
@@ -46,25 +46,31 @@ uint8_t crc8(uint8_t crc, uint8_t poly, uint8_t *data, size_t len)
 void main_embedded()
 {
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;     // Stop watchdog timer
+
+    // Run configuration atomically
+    __disable_irq();
     clockConfigure();
-    adcConfigure();
     gpioConfigure();
-    i2cConfigure();
-    timerConfigure();
+    adcConfigure();
     uartCompConfigure();
     uartPneumaticsConfigure();
+    i2cConfigure();
+    timerConfigure();
 
     // Declare/initialize variables for main loop
     uint8_t scheduleEvent = NO_EVENT;
     uint8_t motorCurrents[16];
     uint8_t powerStatus[12];
     i2cState = I2C_READY;
-    depthRead[0] = 0;
-    depthRead[1] = 0;
-    depthRead[2] = 0;
     powerConversionDone = 1;    // Indicate that ADC conversions are ready
     motorConversionDone = 1;
+    depthAdcConversionFlag = 0;
+    depthSensorConnected = 0;
     uint32_t i = 0;  // for loop index
+    for(i = 0;i < 6;i++)
+    {
+        depthRead[i] = 0;
+    }
 
     // Erase all queues/lists
     eventList->head = 0;
@@ -86,6 +92,13 @@ void main_embedded()
         motorReceive->elements[i] = 0;
         transmit->elements[i] = 0;
     }
+    __enable_irq();
+
+    // Run depth sensor initialization function until it works
+    if(depthSensorInit())
+    {
+        depthSensorConnected = 1;
+    }
 
     // Run the scheduler in the main loop
     // TODO: Upgrade scheduler to an RTOS
@@ -93,6 +106,15 @@ void main_embedded()
     {
         // Begin each loop by grabbing the next event
         scheduleEvent = queuePop(eventList);
+
+        // If the depth sensor was disconnected, attempt to reconnect
+        if(!depthSensorConnected)
+        {
+            if(depthSensorInit())
+            {
+                depthSensorConnected = 1;
+            }
+        }
 
         // Nothing to perform, go to sleep and wait
         if(scheduleEvent == NO_EVENT)
@@ -104,24 +126,18 @@ void main_embedded()
         else if(scheduleEvent == DEPTH_SENSOR_READ_START)
         {
             // Check if an I2C reading is currently happening
-            if(i2cState == I2C_READY)
+            if(i2cState == I2C_READY && depthSensorConnected)
             {
-                // If I2C is ready for another conversion, begin the next conversion
-                EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;        // Set MSP to transmit mode
-                EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;     // Transmit start condition and write mode slave address
+                // Update i2c state for error handling in main
+                i2cState = DEPTH_CONVERSION_STARTED;
 
-                // Wait until we can send command data
-                while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
-
-                // transmit the conversion command
-                EUSCI_B0->TXBUF = DEPTH_SENSOR_DEPTH_CONVERSION;
-
-                // Wait until we can send a stop
-                while(!(EUSCI_B0->IFG & EUSCI_B_IFG_TXIFG0));
-
-                // Send a stop and update i2c state
-                EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
-                i2cState = CONVERSION_STARTED;
+                // Begin a depth sensor conversion
+                if(!i2cTransmit(DEPTH_SENSOR_ADDRESS, DEPTH_SENSOR_DEPTH_CONVERSION))
+                {
+                    i2cState = I2C_READY;
+                    depthSensorConnected = 0;
+                    depthAdcConversionFlag = 0;
+                }
             }
             // If I2C isn't ready for another conversion, just skip it because it does 60 per second
         }
@@ -140,58 +156,25 @@ void main_embedded()
                     queuePush(transmit, DEPTH_SENSOR_FRAME);
 
                     // Check if any bytes are start stop or escape frames
-                    if(depthRead[0] == START_STOP_FRAME)
+                    for(i = 0;i < 6;i++)
                     {
-                        // Queue escape and c0 frames
-                        queuePush(transmit, ESCAPE_FRAME);
-                        queuePush(transmit, C0_FRAME);
-                    }
-                    else if(depthRead[0] == ESCAPE_FRAME)
-                    {
-                        // Queue escape and db frames
-                        queuePush(transmit, ESCAPE_FRAME);
-                        queuePush(transmit, DB_FRAME);
-                    }
-                    else
-                    {
-                        // Queue whatever depthRead[0] is
-                        queuePush(transmit, depthRead[0]);
-                    }
-
-                    if(depthRead[1] == START_STOP_FRAME)
-                    {
-                        // Queue escape and c0 frames
-                        queuePush(transmit, ESCAPE_FRAME);
-                        queuePush(transmit, C0_FRAME);
-                    }
-                    else if(depthRead[1] == ESCAPE_FRAME)
-                    {
-                        // Queue escape and db frames
-                        queuePush(transmit, ESCAPE_FRAME);
-                        queuePush(transmit, DB_FRAME);
-                    }
-                    else
-                    {
-                        // Queue whatever depthRead[1] is
-                        queuePush(transmit, depthRead[1]);
-                    }
-
-                    if(depthRead[2] == START_STOP_FRAME)
-                    {
-                        // Queue escape and c0 frames
-                        queuePush(transmit, ESCAPE_FRAME);
-                        queuePush(transmit, C0_FRAME);
-                    }
-                    else if(depthRead[2] == ESCAPE_FRAME)
-                    {
-                        // Queue escape and db frames
-                        queuePush(transmit, ESCAPE_FRAME);
-                        queuePush(transmit, DB_FRAME);
-                    }
-                    else
-                    {
-                        // Queue whatever depthRead[2] is
-                        queuePush(transmit, depthRead[2]);
+                        if(depthRead[i] == START_STOP_FRAME)
+                        {
+                            // Queue escape and c0 frames
+                            queuePush(transmit, ESCAPE_FRAME);
+                            queuePush(transmit, C0_FRAME);
+                        }
+                        else if(depthRead[i] == ESCAPE_FRAME)
+                        {
+                            // Queue escape and db frames
+                            queuePush(transmit, ESCAPE_FRAME);
+                            queuePush(transmit, DB_FRAME);
+                        }
+                        else
+                        {
+                            // Queue whatever actual data is
+                            queuePush(transmit, depthRead[i]);
+                        }
                     }
 
                     // Add end frame to queue
@@ -229,7 +212,7 @@ void main_embedded()
             // If the ADC is busy, try again later
             else
             {
-                queuePush(eventList, POWER_CURRENT_READ_START);
+                queuePush(eventList, MOTOR_CURRENT_READ_START);
             }
         }
 

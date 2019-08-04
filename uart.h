@@ -9,18 +9,19 @@
 
 
 // Define various frames used in UART communication
-#define START_STOP_FRAME        0xC0
-#define ESCAPE_FRAME            0xDB
-#define C0_FRAME                0xDC
-#define DB_FRAME                0xDD
-#define CONFIRMATION_CORRECT    0xF0
-#define CONFIRMATION_INCORRECT  0x0F
-#define MOTOR_CHANGE_FRAME      0x11
-#define PNEUMATICS_FIRE_FRAME   0x22
-#define DEPTH_SENSOR_FRAME      0xCC
-#define MOTOR_CURRENT_FRAME     0xDD
-#define POWER_CURRENT_FRAME     0xEE
-#define ERROR_FRAME             0xFF
+#define START_STOP_FRAME            0xC0
+#define ESCAPE_FRAME                0xDB
+#define C0_FRAME                    0xDC
+#define DB_FRAME                    0xDD
+#define CONFIRMATION_CORRECT        0xF0
+#define CONFIRMATION_INCORRECT      0x0F
+#define CALIBRATION_DATA_FRAME      0x00
+#define MOTOR_CHANGE_FRAME          0x11
+#define PNEUMATICS_FIRE_FRAME       0x22
+#define DEPTH_SENSOR_FRAME          0xCC
+#define MOTOR_CURRENT_FRAME         0xDD
+#define POWER_CURRENT_FRAME         0xEE
+#define ERROR_FRAME                 0xFF
 
 
 // Enumeration for the different receiving states
